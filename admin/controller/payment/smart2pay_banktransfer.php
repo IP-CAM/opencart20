@@ -12,12 +12,16 @@ class ControllerPaymentSmart2payBanktransfer extends Controller {
 
         $this->load->language('payment/smart2pay');
 
+        $data = array();
+
         $data['error'] = array();
 
         $data['heading_title'] = $this->language->get('heading_title');
         $data['text_edit'] = $this->language->get('text_edit') . " (" . ucwords($this->methodName) . ")";
         $data['btn_text_save'] = $this->language->get('btn_text_save');
         $data['btn_text_cancel'] = $this->language->get('btn_text_cancel');
+
+        $this->document->setTitle($this->language->get('heading_title'). ' (' . ucwords($this->methodName) . ')');
 
         /*
          * Save POST data if valid
@@ -30,7 +34,8 @@ class ControllerPaymentSmart2payBanktransfer extends Controller {
 
             $this->session->data['success'] = 'Success: You have modified Smart2Pay ' . ucfirst($this->methodName) . ' settings!';
 
-            $this->response->redirect($this->url->link('extension/payment', 'token=' . $this->session->data['token'], 'SSL'));
+            // $this->response->redirect($this->url->link('extension/payment', 'token=' . $this->session->data['token'], 'SSL'));
+            $this->response->redirect($this->url->link('payment/smart2pay_'.$this->methodName, 'token=' . $this->session->data['token'], 'SSL'));
         }
 
         /*
@@ -107,15 +112,6 @@ class ControllerPaymentSmart2payBanktransfer extends Controller {
             'href'      => $this->url->link('payment/smart2pay_' . $this->methodName, 'token=' . $this->session->data['token'], 'SSL')
         );
 
-        /*
-         * Prepare templates
-         */
-        $this->template = 'payment/smart2pay_payment_method.tpl';
-        $this->children = array(
-            'common/header',
-            'common/footer'
-        );
-
         $data['header'] = $this->load->controller('common/header');
         $data['column_left'] = $this->load->controller('common/column_left');
         $data['footer'] = $this->load->controller('common/footer');
@@ -124,6 +120,7 @@ class ControllerPaymentSmart2payBanktransfer extends Controller {
          * Render
          */
         $data['error'] = $this->error;
+
         $this->response->setOutput($this->load->view('payment/smart2pay_payment_method.tpl', $data));
 	}
 
@@ -136,12 +133,12 @@ class ControllerPaymentSmart2payBanktransfer extends Controller {
 
 		if ( ! $this->user->hasPermission('modify', 'payment/smart2pay_' . $this->methodName)) {
 			$this->error['warning'] = $this->language->get('error_permission');
-            return false;
 		}
 
-        $this->error = array();
+        if (!$this->error)
+            return true;
 
-        return true;
+        return false;
 	}
 
     /**
@@ -154,4 +151,3 @@ class ControllerPaymentSmart2payBanktransfer extends Controller {
      */
     public function uninstall(){}
 }
-?>
