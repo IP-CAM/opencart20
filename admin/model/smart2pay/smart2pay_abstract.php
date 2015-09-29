@@ -73,6 +73,7 @@ abstract class ControllerPaymentSmart2payAbstract extends Controller
     public function index( $data = false )
     {
         $this->load->language( 'payment/smart2pay' );
+        $this->load->model( 'smart2pay/helper' );
 
         if( $data === false or !is_array( $data ) )
             $data = array();
@@ -91,13 +92,18 @@ abstract class ControllerPaymentSmart2payAbstract extends Controller
             $data['heading_title'] = $this->language->get( 'heading_title');
 
         if( empty( $data['text_edit'] ) )
-            $data['text_edit'] = $this->language->get( 'text_edit' ) . ' (' . $method_name . ')';
+            $data['text_edit'] = sprintf( $this->language->get( 'text_edit' ), ModelSmart2payHelper::MODULE_VERSION ) . ' (' . $method_name . ')';
 
         if( empty( $data['btn_text_save'] ) )
             $data['btn_text_save'] = $this->language->get('btn_text_save');
 
         if( empty( $data['btn_text_cancel'] ) )
             $data['btn_text_cancel'] = $this->language->get('btn_text_cancel');
+
+        $data['go_to_payment_methods_tab'] = $this->language->get('text_go_to_payment_methods');
+        $data['go_to_payment_methods_link'] = $this->url->link( 'payment/smart2pay/view_payment_methods', 'token=' . $this->session->data['token'], 'SSL');
+
+        $this->document->setTitle( $data['text_edit'] );
 
         /*
          * Save POST data if valid
@@ -162,7 +168,7 @@ abstract class ControllerPaymentSmart2payAbstract extends Controller
 
         $data['breadcrumbs'][] = array(
             'text'      => $this->language->get('heading_title'),
-            'href'      => $this->url->link('payment/smart2pay_' . $this->methodName, 'token=' . $this->session->data['token'], 'SSL'),
+            'href'      => $this->url->link('payment/smart2pay', 'token=' . $this->session->data['token'], 'SSL'),
             'separator' => ' :: '
         );
 
@@ -276,7 +282,10 @@ abstract class ControllerPaymentSmart2payAbstract extends Controller
     /**
      * Install extension
      */
-    public function install(){}
+    public function install()
+    {
+        $this->response->redirect( $this->url->link( 'payment/smart2pay', 'token=' . $this->session->data['token'].'&installed='.$this->get_method_short_name(), 'SSL' ) );
+    }
 
     /**
      * Uninstall extension

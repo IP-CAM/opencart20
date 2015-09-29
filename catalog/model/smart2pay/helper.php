@@ -22,15 +22,31 @@
  * @property User $user
  * @property ModelSettingSetting $model_setting_setting
  * @property ModelLocalisationOrderStatus $model_localisation_order_status
+ * @property ModelExtensionExtension $model_extension_extension
+ * @property ModelSmart2payPaymentExtension $model_smart2pay_payment_extension
  */
 class ModelSmart2payHelper extends Model
 {
-    const MODULE_VERSION = '1.0.5';
+    const MODULE_VERSION = '1.0.6';
 
     const ENV_DEMO = 1, ENV_TEST = 2, ENV_LIVE = 3;
     const S2P_STATUS_OPEN = 1, S2P_STATUS_SUCCESS = 2, S2P_STATUS_CANCELLED = 3, S2P_STATUS_FAILED = 4, S2P_STATUS_EXPIRED = 5, S2P_STATUS_PROCESSING = 7;
     const PAYMENT_METHOD_BT = 1, PAYMENT_METHOD_SIBS = 20;
     const CONFIRM_ORDER_PAID = 0, CONFIRM_ORDER_FINAL_STATUS = 1, CONFIRM_ORDER_REDIRECT = 2, CONFIRM_ORDER_INITIATE = 3;
+
+    private static $last_instance = false;
+
+    public function __construct( $registry )
+    {
+        parent::__construct( $registry );
+
+        self::$last_instance = $this;
+    }
+
+    static function get_last_instance()
+    {
+        return self::$last_instance;
+    }
 
     static function valid_environment( $env )
     {
@@ -40,60 +56,143 @@ class ModelSmart2payHelper extends Model
 
         return true;
     }
+    /**
+     * Get logs
+     *
+     * @return array
+     */
+    public function get_logs()
+    {
+        if( !($query = $this->db->query( 'SELECT * FROM ' . DB_PREFIX . 'smart2pay_log ORDER BY log_created DESC' )) )
+            return array();
+
+        $logs = array();
+        foreach( $query->rows as $method )
+            $logs[] = $method;
+
+        return $logs;
+    }
 
     /**
      * Get all method settings in a single array
      *
      * @return array
      */
-    public function getall_method_settings( $params = false )
+    public function get_all_method_settings( $params = false )
     {
-        $this->load->model( 'smart2pay/helper' );
+        static $all_methods_settings = array();
 
         if( empty( $params ) or !is_array( $params ) )
             $params = array();
 
-        if( empty( $params['include_countries'] ) )
-            $params['include_countries'] = false;
+        if( !isset( $params['skip_cache'] ) )
+            $params['skip_cache'] = false;
 
-        if( empty( $params['include_countries'] ) )
-            $sql_str = 'SELECT * FROM ' . DB_PREFIX . 'smart2pay_method ORDER BY display_name';
-        else
-            $sql_str = 'SELECT '.DB_PREFIX.'smart2pay_method.*, '.
-                       ' '.DB_PREFIX.'smart2pay_country.country_id AS country_id, '.DB_PREFIX.'smart2pay_country.code AS country_code, '.DB_PREFIX.'smart2pay_country.name AS country_name '.
-                       ' FROM '.DB_PREFIX.'smart2pay_method '.
-                       ' LEFT JOIN '.DB_PREFIX.'smart2pay_country_method ON '.DB_PREFIX.'smart2pay_method.method_id = '.DB_PREFIX.'smart2pay_country_method.method_id '.
-                       ' LEFT JOIN '.DB_PREFIX.'smart2pay_country ON '.DB_PREFIX.'smart2pay_country.country_id = '.DB_PREFIX.'smart2pay_country_method.country_id '.
-                       ' ORDER BY '.DB_PREFIX.'smart2pay_method.display_name ASC, '.DB_PREFIX.'smart2pay_country.name ASC';
+        if( empty( $params['skip_cache'] )
+        and !empty( $all_methods_settings ) )
+            return $all_methods_settings;
+
+        $this->load->model( 'extension/extension' );
+        $this->load->model( 'smart2pay/helper' );
+
+        $installed_extensions = $this->model_extension_extension->getInstalled( 'payment' );
+
+        $sql_str = 'SELECT '.DB_PREFIX.'smart2pay_method.*, '.
+                   ' '.DB_PREFIX.'smart2pay_country.country_id AS country_id, '.DB_PREFIX.'smart2pay_country.code AS country_code, '.DB_PREFIX.'smart2pay_country.name AS country_name, '.
+                   ' '.DB_PREFIX.'smart2pay_method_files.file_slug AS file_slug '.
+                   ' FROM '.DB_PREFIX.'smart2pay_method '.
+                   ' LEFT JOIN '.DB_PREFIX.'smart2pay_method_files ON '.DB_PREFIX.'smart2pay_method.method_id = '.DB_PREFIX.'smart2pay_method_files.method_id '.
+                   ' LEFT JOIN '.DB_PREFIX.'smart2pay_country_method ON '.DB_PREFIX.'smart2pay_method.method_id = '.DB_PREFIX.'smart2pay_country_method.method_id '.
+                   ' LEFT JOIN '.DB_PREFIX.'smart2pay_country ON '.DB_PREFIX.'smart2pay_country.country_id = '.DB_PREFIX.'smart2pay_country_method.country_id '.
+                   ' ORDER BY '.DB_PREFIX.'smart2pay_method.display_name ASC, '.DB_PREFIX.'smart2pay_country.name ASC';
 
         if( !($query = $this->db->query( $sql_str ))
             or !is_object( $query ) or empty( $query->rows ) )
             return array();
 
         $methods = array();
+        $methods['file_slug_to_id'] = array();
         foreach( $query->rows as $method_arr )
         {
-            if( empty( $method_arr['provider_value'] ) )
+            if( empty( $method_arr['method_id'] ) or empty( $method_arr['file_slug'] ) )
                 continue;
 
-            if( empty( $methods[$method_arr['provider_value']] ) )
+            if( empty( $methods[$method_arr['method_id']] ) )
             {
-                $methods[$method_arr['provider_value']]['db_details'] = $method_arr;
-                $methods[$method_arr['provider_value']]['settings'] = $this->model_smart2pay_helper->get_module_settings( $method['provider_value'] );
-                $methods[$method_arr['provider_value']]['countries'] = array();
+                $module_file = DIR_APPLICATION . 'controller/payment/smart2pay_' . $method_arr['file_slug'] . '.php';
+
+                if( !@file_exists( $module_file ) )
+                    continue;
+
+                $simple_method_arr = $method_arr;
+                if( array_key_exists( 'country_id', $simple_method_arr ) )
+                    unset( $simple_method_arr['country_id'] );
+                if( array_key_exists( 'country_code', $simple_method_arr ) )
+                    unset( $simple_method_arr['country_code'] );
+                if( array_key_exists( 'country_name', $simple_method_arr ) )
+                    unset( $simple_method_arr['country_name'] );
+                if( array_key_exists( 'file_slug', $simple_method_arr ) )
+                    unset( $simple_method_arr['file_slug'] );
+
+                $methods[$method_arr['method_id']]['file_slug'] = 'smart2pay_'.$method_arr['file_slug'];
+                $methods[$method_arr['method_id']]['installed'] = in_array( $methods[$method_arr['method_id']]['file_slug'], $installed_extensions );
+                $methods[$method_arr['method_id']]['db_details'] = $simple_method_arr;
+                $methods[$method_arr['method_id']]['settings'] = $this->model_smart2pay_helper->get_module_settings( $method_arr['provider_value'] );
+                $methods[$method_arr['method_id']]['countries'] = array();
+
+                $methods['file_slug_to_id'][$method_arr['file_slug']] = $method_arr['method_id'];
             }
 
-            if( !empty( $params['include_countries'] )
-                and !empty( $method_arr['country_id'] ) )
+            if( !empty( $method_arr['country_id'] ) )
             {
-                $methods[$method_arr['provider_value']]['countries'][$method_arr['country_id']] = array(
+                $methods[$method_arr['method_id']]['countries'][$method_arr['country_id']] = array(
                     'code' => $method_arr['country_code'],
                     'name' => $method_arr['country_name'],
                 );
             }
         }
 
+        $all_methods_settings = $methods;
+
         return $methods;
+    }
+
+    public function get_method_language_array( $params = false )
+    {
+        if( empty( $params ) or !is_array( $params ) )
+            $params = array();
+
+        if( empty( $params['method_id'] ) )
+            $params['method_id'] = 0;
+        else
+            $params['method_id'] = intval( $params['method_id'] );
+        if( empty( $params['file_slug'] ) )
+            $params['file_slug'] = '';
+        else
+            $params['file_slug'] = trim( $params['file_slug'] );
+
+        $all_method_settings = $this->get_all_method_settings();
+
+        if( empty( $params['method_id'] ) and empty( $params['file_slug'] ) )
+            return array();
+
+        $method_details = false;
+        if( !empty( $params['method_id'] )
+        and !empty( $all_method_settings[$params['method_id']] ) )
+            $method_details = $all_method_settings[$params['method_id']];
+        if( !empty( $params['file_slug'] )
+        and !empty( $all_method_settings['file_slug_to_id'][$params['file_slug']] )
+        and !empty( $all_method_settings[$all_method_settings['file_slug_to_id'][$params['file_slug']]] ) )
+            $method_details = $all_method_settings[$all_method_settings['file_slug_to_id'][$params['file_slug']]];
+
+        if( empty( $method_details ) )
+            return array();
+
+        $lang_arr = array();
+        $lang_arr['heading_title'] = 'Smart2Pay '.$method_details['db_details']['display_name'];
+        $lang_arr['text_'.$method_details['file_slug']] = '<a href="http://www.smart2pay.com" target="_blank"><img style="border: 1px solid #EEEEEE; padding:1px; max-height: 38px;" alt="'.$lang_arr['heading_title'].'" title="'.$lang_arr['heading_title'].'" src="view/image/payment/smart2pay/methods/'.$method_details['db_details']['logo_url'].'" /></a>';
+
+        return $lang_arr;
     }
 
     public function get_countries_for_method( $method_id )
@@ -130,6 +229,7 @@ class ModelSmart2payHelper extends Model
         if( !defined( 'DIR_CATALOG' ) )
             return false;
 
+        $this->load->model( 'smart2pay/payment_extension' );
         $this->load->model( 'setting/setting' );
 
         if( !($saved_settings = $this->get_module_settings( $module_name )) )
@@ -137,9 +237,34 @@ class ModelSmart2payHelper extends Model
 
         $new_settings = array_merge( $saved_settings, $settings_arr );
 
+        if( $module_name == '' )
+        {
+            if( ($new_settings_arr = $this->check_for_updates( $new_settings )) )
+                $new_settings = $new_settings_arr;
+        }
+
         $this->model_setting_setting->editSetting( 'smart2pay' . ($module_name!=''?'_':'').$module_name, $new_settings );
 
         return true;
+    }
+
+    public function check_for_updates( $settings_arr = false )
+    {
+        $this->load->model( 'smart2pay/payment_extension' );
+
+        if( $settings_arr === false )
+            $settings_arr = $this->get_module_settings();
+
+        if( empty( $settings_arr['smart2pay_db_version'] ) )
+            $settings_arr['smart2pay_db_version'] = '1.0.0';
+
+        if( version_compare( $settings_arr['smart2pay_db_version'], self::MODULE_VERSION, '<' ) )
+        {
+            if( $this->model_smart2pay_payment_extension->update( $settings_arr['smart2pay_db_version'] ) )
+                $settings_arr['smart2pay_db_version'] = self::MODULE_VERSION;
+        }
+
+        return $settings_arr;
     }
 
     public function save_methods_settings( $methods_settings_arr )
@@ -210,8 +335,141 @@ class ModelSmart2payHelper extends Model
         return $new_fields_arr;
     }
 
+    function render_module_fields( $elements, $errors )
+    {
+        if( empty( $elements ) or !is_array( $elements ) )
+            return '';
 
-    /**
+        ob_start();
+        foreach( $elements as $name => $element )
+        {
+            ?>
+            <div class="form-group <?php echo ( !empty( $element['required'] ) ? 'required' : '' )?>">
+                <label class="col-sm-2 control-label" for=""><?php echo $element['label']?></label>
+                <div class="col-sm-10"><?php
+
+                        switch( $element['type'] )
+                        {
+                            case 'text':
+                                ?><input class="form-control" style="width: 300px;" type="text" name="<?php echo $name?>" value="<?php echo $element['value']?>" /><?php
+                                break;
+
+                            case 'textarea':
+                                ?><textarea class="form-control" style="width: 300px;" name="<?php echo $name?>"><?php echo $element['value']?></textarea><?php
+                                break;
+
+                            case 'select':
+                                ?><select class="form-control" <?php ( !empty( $element['multiple'] )? 'multiple' : '')?> name="<?php echo $name?>"><?php
+
+                                if( !empty( $element['options'] ) and is_array( $element['options'] ) )
+                                {
+                                    foreach( $element['options'] as $key => $label )
+                                    {
+                                        ?><option <?php echo (in_array( $key, (array)$element['value'] ) ? 'selected="selected"' : '' )?> value="<?php echo $key?>"><?php echo $label?></option><?php
+                                    }
+                                }
+                                ?></select><?php
+                                break;
+
+                            case 'checkbox':
+                                foreach( $element['options'] as $key => $label )
+                                {
+                                    ?>
+                                    <input id="<?php echo $name.$key?>" type="checkbox" value="<?php echo $key?>" name="<?php echo $name.(count($element['options']) > 1 ? '[]' : '')?>" <?php echo (in_array($key, (array) $element['value']) ? 'checked="checked"' : '')?>">
+                                    <label for="<?php echo $name.$key?>"><?php echo $label?></label>
+                                    <?php
+                                }
+                                break;
+                        }
+
+                        if( isset( $errors[$name] ) )
+                        {
+                            ?><div class="text-danger"><?php echo $errors[$name]?></div><?php
+                        }
+
+                    ?></div>
+            </div>
+            <?php
+        }
+        $buf = ob_get_clean();
+
+        return $buf;
+    }
+
+    public function render_logs( $logs )
+    {
+        ob_start();
+        if( empty( $logs ) or !is_array( $logs ) )
+            echo "There are no logs, yet.";
+
+        else
+        {
+            usort( $logs, function( $a, $b )
+            {
+                if( $a['log_id'] == $b['log_id'] )
+                    return 0;
+
+                return ($a['log_id'] < $b['log_id'] ? 1 : -1);
+            });
+
+            foreach( $logs as $log )
+            {
+                echo $log['log_created'].' ['.str_pad( $log['log_type'], 15, ' ', STR_PAD_LEFT ) . ']' . ' ' . $log['log_data'] . "\r\n";
+            }
+        }
+        $buf = ob_get_clean();
+
+        return $buf;
+    }
+
+    public function render_main_plugin_tabs( $params = false )
+    {
+        if( empty( $params ) or !is_array( $params ) )
+            $params = array();
+
+        if( empty( $params['current_tab'] ) )
+            $params['current_tab'] = 'module_settings';
+
+        $tabs_arr = array(
+            'module_settings' => array(
+                'title' => 'Module Settings',
+                'link' => $this->url->link( 'payment/smart2pay', 'token=' . $this->session->data['token'], 'SSL' ),
+            ),
+            'payment_methods' => array(
+                'title' => 'Payment Methods',
+                'link' => $this->url->link( 'payment/smart2pay/view_payment_methods', 'token=' . $this->session->data['token'], 'SSL' ),
+            ),
+            'logs' => array(
+                'title' => 'View Logs',
+                'link' => $this->url->link( 'payment/smart2pay/view_logs', 'token=' . $this->session->data['token'], 'SSL' ),
+            ),
+        );
+
+        ob_start();
+        ?><div style="padding: 10px;"><?php
+        $first_tab = true;
+        foreach( $tabs_arr as $tab_name => $tab_arr )
+        {
+            if( empty( $first_tab ) )
+                echo ' | ';
+
+            $title_str = $tab_arr['title'];
+            if( $tab_name == $params['current_tab'] )
+                $title_str = '<strong>'.$title_str.'</strong>';
+
+            ?><a href="<?php echo $tab_arr['link']?>"><?php echo $title_str?></a><?php
+
+            $first_tab = false;
+        }
+        ?></div><?php
+
+        $buf = ob_get_clean();
+
+        return $buf;
+    }
+
+
+        /**
      * Get module settings
      *
      * @return array

@@ -7,11 +7,12 @@ $_['heading_title'] = 'Smart2Pay';
 /*
  * Texts
  */
-$_['text_smart2pay'] = '<a onclick="window.open(\'http://www.smart2pay.com/\');"><img style="max-width: 115px" src="view/image/payment/smart2pay.png" alt="Smart2Pay" title="Smart2Pay" style="border: 1px solid #EEEEEE;" /></a>';
+$_['text_smart2pay'] = '<a href="http://www.smart2pay.com" target="_blank"><img style="border: 1px solid #EEEEEE; padding:1px;max-height: 38px;" alt="Smart2Pay" title="Smart2Pay" src="view/image/payment/smart2pay.png" /></a>';
 $_['text_payment'] = 'Payment';
 $_['text_edit'] = 'Smart2Pay (v%s) Edit Settings';
 $_['text_view_logs'] = 'Smart2Pay (v%s) Logs';
 $_['text_view_payment_methods'] = 'Smart2Pay (v%s) Payment Methods';
+$_['text_go_to_payment_methods'] = 'Go To Payment Methods Tab';
 
 /*
  * Button texts

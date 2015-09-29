@@ -1,151 +1,64 @@
 <?php
 
-class ControllerPaymentSmart2payEnetsdebit extends Controller {
-
-    private $error = array();
-
-    protected $methodName = 'enetsdebit';
-
-	public function index() {
-
-        $this->load->model('setting/setting');
-
-        $this->load->language('payment/smart2pay');
-
-        $this->data['error'] = array();
-
-        /*
-         * Save POST data if valid
-         */
-        $this->data['form'] = array();
-
-        if (($this->request->server['REQUEST_METHOD'] == 'POST') && $this->validate()) {
-
-            $this->model_setting_setting->editSetting('smart2pay_' . $this->methodName, array_merge($this->data['form'], $this->request->post));
-
-            $this->session->data['success'] = 'Success: You have modified Smart2Pay ' . ucfirst($this->methodName) . ' settings!';
-
-            $this->redirect($this->url->link('extension/payment', 'token=' . $this->session->data['token'], 'SSL'));
-        }
-
-        /*
-         * Set form elements
-         */
-        $formElements = array(
-            "smart2pay_" . $this->methodName . "_status" =>
-                array(
-                    "label"   => "Enabled",
-                    "type"    => "select",
-                    "options" =>
-                        array(
-                            0 => "No",
-                            1 => "Yes"
-                        ),
-                    "value" => 0
-                )
-        );
-
-        $savedSettings = $this->model_setting_setting->getSetting('smart2pay_' . $this->methodName);
-
-        if ($savedSettings) {
-            foreach ($savedSettings as $key => $val) {
-                if (isset($formElements[$key])) {
-                    $formElements[$key]['value'] = $val;
-                }
-            }
-        }
-
-        if ($this->request->server['REQUEST_METHOD'] == 'POST') {
-            if ($this->request->post) {
-                foreach ($this->request->post as $key => $val) {
-                    if (isset($formElements[$key])) {
-                        $formElements[$key]['value'] = $val;
-                    }
-                }
-            }
-        }
-
-        $this->data['form_elements'] = $formElements;
-
-        /*
-         * Set links
-         */
-        $this->data['cancel'] = $this->url->link('extension/payment', 'token=' . $this->session->data['token'], 'SSL');
-        $this->data['action'] = $this->url->link('payment/smart2pay_' . $this->methodName, 'token=' . $this->session->data['token'], 'SSL');
-
-        /*
-         * Set validation errors and warnings
-         */
-        if (isset($this->error['warning'])) {
-            $this->data['error_warning'] = $this->error['warning'];
-        } else {
-            $this->data['error_warning'] = '';
-        }
-
-        /*
-         * Set breadcrumbs
-         */
-        $this->data['breadcrumbs'] = array();
-
-        $this->data['breadcrumbs'][] = array(
-            'text'      => $this->language->get('text_home'),
-            'href'      => $this->url->link('common/home', 'token=' . $this->session->data['token'], 'SSL'),
-            'separator' => false
-        );
-
-        $this->data['breadcrumbs'][] = array(
-            'text'      => $this->language->get('text_payment'),
-            'href'      => $this->url->link('extension/payment', 'token=' . $this->session->data['token'], 'SSL'),
-            'separator' => ' :: '
-        );
-
-        $this->data['breadcrumbs'][] = array(
-            'text'      => $this->language->get('heading_title'),
-            'href'      => $this->url->link('payment/smart2pay_' . $this->methodName, 'token=' . $this->session->data['token'], 'SSL'),
-            'separator' => ' :: '
-        );
+if( @file_exists( DIR_APPLICATION . 'model/smart2pay/smart2pay_abstract.php' ) )
+    include_once( DIR_APPLICATION . 'model/smart2pay/smart2pay_abstract.php' );
 
 
-        /*
-         * Prepare templates
-         */
-        $this->template = 'payment/smart2pay_payment_method.tpl';
-        $this->children = array(
-            'common/header',
-            'common/footer'
-        );
-
-        /*
-         * Render
-         */
-        $this->response->setOutput($this->render());
-	}
+class ControllerPaymentSmart2payEnetsdebit extends ControllerPaymentSmart2payAbstract
+{
+    /**
+     * Returns ID of method
+     * @return int
+     */
+    public function get_method_id()
+    {
+        return 37;
+    }
 
     /**
-     * Validate post data
+     * Returns a lowercase filename of payment method without smart2pay_ prefix and file extension
+     * eg. onlinebankingthailand for smart2pay_onlinebankingthailand.php file
+     * @return string
+     */
+    public function get_method_short_name()
+    {
+        return 'enetsdebit';
+    }
+
+    /**
+     * Returns user friendly method name
+     * @return string
+     */
+    public function get_method_name()
+    {
+        return 'eNETS Debit';
+    }
+
+    /**
+     * When saving payment method settings, this method will do any special validations.
+     * Method will set errors to $this->error array
      *
-     * @return bool
+     * @param array $settings_arr Array with all values to be validated (from post or other source)
+     * @param array $validated_arr Array with common keys already validated by abstract class
+     *
+     * @return array|false Returns final validated array with settings or false on any error
      */
-    private function validate() {
+    public function method_validate( $settings_arr, $validated_arr )
+    {
+        return $validated_arr;
+    }
 
-		if ( ! $this->user->hasPermission('modify', 'payment/smart2pay_' . $this->methodName)) {
-			$this->error['warning'] = $this->language->get('error_permission');
-            return false;
-		}
+    /**
+     * If any special fields are required for this payment method, this method will return array of fields. If no special fields return false.
+     * @return array|false
+     */
+    public function method_settings()
+    {
+        return false;
+    }
 
-        $this->data['error'] = array();
-
-        return true;
+    public function index( $data = false )
+    {
+        parent::index();
 	}
-
-    /**
-     * Install extension
-     */
-    public function install(){}
-
-    /**
-     * Uninstall extension
-     */
-    public function uninstall(){}
 }
-?>

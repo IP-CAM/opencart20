@@ -64,6 +64,10 @@ class ControllerPaymentSmart2pay extends Controller
         $form_elements = $this->model_smart2pay_helper->get_main_module_fields();
         $saved_settings = $this->model_smart2pay_helper->get_module_settings();
 
+        // Check if database version is older than script version and if there are things to change in database...
+        if( ($new_settings_arr = $this->model_smart2pay_helper->check_for_updates( $saved_settings )) )
+            $saved_settings = $new_settings_arr;
+
         if( !empty( $saved_settings ) and is_array( $saved_settings ) )
         {
             foreach( $saved_settings as $key => $val )
@@ -144,7 +148,7 @@ class ControllerPaymentSmart2pay extends Controller
 
         $this->document->setTitle( $data['text_edit'] );
 
-        var_dump( $this->model_smart2pay_helper->getall_method_settings( array( 'include_countries' => true ) ) );
+        var_dump( $this->model_smart2pay_helper->get_all_method_settings() );
         exit;
 
         /*
@@ -244,6 +248,7 @@ class ControllerPaymentSmart2pay extends Controller
 
         $data['heading_title'] = $this->language->get( 'heading_title' );
         $data['text_edit'] = sprintf( $this->language->get( 'text_view_logs' ), ModelSmart2payHelper::MODULE_VERSION );
+        $data['btn_text_cancel'] = $this->language->get('btn_text_cancel');
 
         $this->document->setTitle( $data['text_edit'] );
 

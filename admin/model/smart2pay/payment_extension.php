@@ -83,8 +83,10 @@ class ModelSmart2payPaymentExtension extends Model
                 `logo_url` varchar(255) default NULL,
                 `guaranteed` int(1) default NULL,
                 `active` int(1) default NULL,
-                PRIMARY KEY  (`method_id`)
-            ) ENGINE=MyISAM  DEFAULT CHARSET=utf8 
+                PRIMARY KEY  (`method_id`),
+                KEY `provider_value` (`provider_value`),
+                KEY `active` (`active`)
+            ) ENGINE=MyISAM  DEFAULT CHARSET=utf8
         ');
         $this->db->query("
             INSERT INTO `" . DB_PREFIX . "smart2pay_method` (`method_id`, `display_name`, `provider_value`, `description`, `logo_url`, `guaranteed`, `active`) VALUES
@@ -125,7 +127,7 @@ class ModelSmart2payPaymentExtension extends Model
             (62, 'Tenpay', 'tenpay', 'Tenpay description', 'tenpay.png', 1, 1),
             (63, 'TrustPay', 'trustpay', 'TrustPay description', 'trustpay.png', 1, 1),
             (64, 'MangirKart', 'mangirkart', 'MangirKart description', 'mangir_cart.gif', 1, 1),
-            (65, 'Finish Banks', 'paytrail', 'Paytrail description', 'paytrail.gif', 1, 1),
+            (65, 'Finnish Banks', 'paytrail', 'Paytrail description', 'paytrail.gif', 1, 1),
             (66, 'MTCPay', 'mtcpay', 'MTCPay description', 'mtcpay.png', 1, 1),
             (67, 'DragonPay', 'dragonpay', 'DragonPay description', 'dragon_pay.png', 1, 1),
             (69, 'Credit Card', 's2pcards', 'S2PCards Description', 's2p_cards.gif', 0, 1),
@@ -139,7 +141,7 @@ class ModelSmart2payPaymentExtension extends Model
             (79, 'Pay by mobile', 'paybymobile', 'Pay by mobile Description', 'pay_by_mobile_v1.gif', 1, 1),
             (81, 'WebMoney Transfer', 'webmoneytransfer', 'WebMoney Transfer Description', 'webmoney.gif', 1, 1),
             (1000, 'Boleto', 'paganet', 'Boleto description', 'boleto_bancario.png', 1, 1),
-            (1001, 'Debito', 'paganet', 'Debito description', 'debito_bradesco.png', 1, 0),
+            (1001, 'Débito Bradesco', 'paganet', 'Debito description', 'debito_bradesco.png', 1, 0),
             (1002, 'Transferencia', 'paganet', 'Transferencia description', 'bradesco_transferencia.png', 1, 1),
             (1003, 'QIWI Wallet', 'qiwi', 'QIWI Wallet description', 'qiwi_wallet.png', 1, 1),
             (1004, 'Beeline', 'qiwi', 'Beeline description', 'beeline.png', 1, 1),
@@ -149,7 +151,7 @@ class ModelSmart2payPaymentExtension extends Model
             (1008, 'Yandex', 'moneta', 'Yandex description', 'yandex.png', 1, 0),
             (1009, 'Alliance Online', 'asiapay', 'Alliance Online description', 'alliance_online.gif', 1, 0),
             (1010, 'AmBank', 'asiapay', 'AmBank description', 'ambank_group.png', 1, 1),
-            (1011, 'CIMB Clicks', 'asiapay', 'CIMB Clicks description', 'cimb_clicks.png', 1, 1),
+            (1011, 'CIMB Clicks Malaysia', 'asiapay', 'CIMB Clicks description', 'cimb_clicks.png', 1, 1),
             (1012, 'FPX', 'asiapay', 'FPX description', 'fpx.png', 1, 1),
             (1013, 'Hong Leong Bank Transfer', 'asiapay', 'Hong Leong Bank Transfer description', 'hong_leong.png', 1, 1),
             (1014, 'Maybank2U', 'asiapay', 'Maybank2U description', 'maybank2u.png', 1, 1),
@@ -183,9 +185,9 @@ class ModelSmart2payPaymentExtension extends Model
             (1043, 'Danske bank', 'paytrail', 'Danske description', 'danske_bank.png', 1, 1),
             (1044, 'Cash-in', 'yandexmoney', 'Cash-in description', 'cashinyandex.gif', 1, 1),
             (1045, 'Cards Russia', 'yandexmoney', 'Cards Russia description', 's2p_cards.gif', 1, 1),
-            (1048, 'BankTransfer Japan', 'degica', 'BankTransfer Japan description', 'degica_bank_transfer.gif', 1, 1),
             (1046, 'Konbini', 'degica', 'Konbini description', 'degica_kombini.png', 1, 1),
             (1047, 'Cards Japan', 'cardsjapan', 'Cards Japan Description', 'degica_cards.gif', 1, 1),
+            (1048, 'BankTransfer Japan', 'degica', 'BankTransfer Japan description', 'degica_bank_transfer.gif', 1, 1),
             (1049, 'PayEasy Japan', 'payeasyjapan', 'PayEasy Japan Description', 'degica_payeasy.gif', 1, 1),
             (1050, 'WebMoney Japan', 'webmoneyjapan', 'WebMoney Japan Description', 'degica_webmoney.gif', 1, 1),
             (1051, 'Globe GCash', 'dragonpay', 'Globe GCash description', 'gcashlogo.jpg', 1, 1),
@@ -193,7 +195,7 @@ class ModelSmart2payPaymentExtension extends Model
             (1053, 'Credit Cards Indonesia', 'creditcardsindonesia', 'Credit Cards Indonesia Description', '1053_credit_cards.gif', 1, 1),
             (1054, 'BII VA', 'biiva', 'BII VA Description', '1054_BII-VA.gif', 1, 1),
             (1055, 'Kartuku', 'kartuku', 'Kartuku Description', '1055_Kartuku.gif', 1, 1),
-            (1056, 'CIMB Clicks', 'cimbclicks', 'CIMBClicks Description', '1056_Cimb_Clicks.gif', 1, 1),
+            (1056, 'CIMB Clicks Indonesia', 'cimbclicks', 'CIMBClicks Description', '1056_Cimb_Clicks.gif', 1, 1),
             (1057, 'Mandiri e-Cash', 'mandiriecass', 'Mandiri e-Cash Description', '1057_Mandiri_ecash.gif', 1, 1),
             (1058, 'IB Muamalat', 'ibmuamalat', 'IB Muamalat Description', '1058_IB_Muamalat.gif', 1, 1),
             (1059, 'T-Cash', 'tcash', 'T-Cash Description', '1059_T-cash.gif', 1, 1),
@@ -209,7 +211,8 @@ class ModelSmart2payPaymentExtension extends Model
                 `country_id` int(11) NOT NULL auto_increment,
                 `code` varchar(3) default NULL,
                 `name` varchar(100) default NULL,
-                PRIMARY KEY  (`country_id`)
+                PRIMARY KEY  (`country_id`),
+                KEY `code` (`code`)
             ) ENGINE=MyISAM  DEFAULT CHARSET=utf8
         ');
         $this->db->query("
@@ -467,7 +470,9 @@ class ModelSmart2payPaymentExtension extends Model
                 `country_id` int(11) default NULL,
                 `method_id` int(11) default NULL,
                 `priority` int(2) default NULL,
-                PRIMARY KEY  (`id`)
+                PRIMARY KEY  (`id`),
+                KEY `country_id` (`country_id`),
+                KEY `method_id` (`method_id`)
             ) ENGINE=MyISAM  DEFAULT CHARSET=utf8
         ');
         $this->db->query('
@@ -1159,5 +1164,142 @@ class ModelSmart2payPaymentExtension extends Model
         $this->db->query("
             INSERT INTO `" . DB_PREFIX . "setting` (`group`, `key`, `value`, `serialized`) VALUES ('smart2pay_checkout_helper', 'smart2pay_checkout_helper_status', 1, 0)
         ");
+    }
+
+    public function update( $old_version )
+    {
+        $this->load->model( 'smart2pay/helper' );
+
+        if( version_compare( $old_version, '1.0.6', '<' ) )
+        {
+            $this->db->query('DROP TABLE IF EXISTS `' . DB_PREFIX . 'smart2pay_method_files`');
+            $this->db->query('
+            CREATE TABLE IF NOT EXISTS `' . DB_PREFIX . 'smart2pay_method_files` (
+                `method_id` int(11) NOT NULL auto_increment,
+                `file_slug` varchar(255) default NULL,
+                PRIMARY KEY  (`method_id`),
+                KEY `file_slug` (`file_slug`)
+            ) ENGINE=MyISAM  DEFAULT CHARSET=utf8');
+
+            $this->db->query("
+            INSERT INTO `" . DB_PREFIX . "smart2pay_method_files` (`method_id`, `file_slug`) VALUES
+            (1, 'banktransfer'),
+            (2, 'ideal'),
+            (3, 'mrcash'),
+            (4, 'giropay'),
+            (5, 'eps'),
+            (8, 'usemyfunds'),
+            (9, 'sofort'),
+            (12, 'przelewy24'),
+            (13, 'onecard'),
+            (14, 'cashu'),
+            (18, 'poli'),
+            (19, 'dineromail'),
+            (20, 'multibanco'),
+            (22, 'monetawallet'),
+            (23, 'paysera'),
+            (24, 'alipay'),
+            (25, 'abaqoos'),
+            (27, 'eplatby'),
+            (28, 'ukash'),
+            (29, 'trustly'),
+            (32, 'debitobdb'),
+            (33, 'cuentadigital'),
+            (34, 'cardsbrl'),
+            (35, 'paysbuy'),
+            (36, 'mazooma'),
+            (37, 'enetsdebit'),
+            (40, 'paysafecard'),
+            (42, 'paypal'),
+            (43, 'pagtotal'),
+            (44, 'payeasy'),
+            (46, 'mercadopago'),
+            (47, 'mozca'),
+            (49, 'toditocash'),
+            (58, 'paywithmybank'),
+            (62, 'tenpay'),
+            (63, 'trustpay'),
+            (64, 'mangirkart'),
+            (65, 'finnishbanks'),
+            (66, 'mtcpay'),
+            (67, 'dragonpay'),
+            (69, 's2pcards'),
+            (72, 'pagoefectivo'),
+            (73, 'mybank'),
+            (74, 'yandexmoney'),
+            (75, 'klarnainvoice'),
+            (76, 'bitcoin'),
+            (77, 'voguepay'),
+            (78, 'skrill'),
+            (79, 'paybymobile'),
+            (81, 'webmoneytransfer'),
+            (1000, 'boleto'),
+            (1001, 'debito'),
+            (1002, 'transferenciabradesco'),
+            (1003, 'qiwiwallet'),
+            (1004, 'beeline'),
+            (1005, 'megafon'),
+            (1006, 'mts'),
+            (1007, 'webmoney'),
+            (1008, 'yandex'),
+            (1009, 'allianceonline'),
+            (1010, 'ambank'),
+            (1011, 'cimbclicksmalaysia'),
+            (1012, 'fpx'),
+            (1013, 'hongleong'),
+            (1014, 'maybank2u'),
+            (1015, 'mepscash'),
+            (1016, 'mobilemoney'),
+            (1017, 'rhb'),
+            (1018, 'webcash'),
+            (1019, 'creditcardscolombia'),
+            (1020, 'pse'),
+            (1021, 'achdebit'),
+            (1022, 'viabaloto'),
+            (1023, 'referencedpayment'),
+            (1024, 'mandiri'),
+            (1025, 'xltunai'),
+            (1026, 'bancomerpago'),
+            (1027, 'santanderpago'),
+            (1028, 'scotiabankpago'),
+            (1029, '7eleven'),
+            (1030, 'oxxopago'),
+            (1031, 'ixepago'),
+            (1033, 'cardsthailand'),
+            (1034, 'paypalthailand'),
+            (1035, 'amexthailand'),
+            (1036, 'cashoptionsthailand'),
+            (1037, 'onlinebankingthailand'),
+            (1038, 'paysbuywallet'),
+            (1039, 'pagosenefectivochile'),
+            (1040, 'pagosenefectivoargentina'),
+            (1041, 'oppohjola'),
+            (1042, 'nordea'),
+            (1043, 'danskebank'),
+            (1044, 'cashin'),
+            (1045, 'cardsrussia'),
+            (1048, 'banktransferjapan'),
+            (1046, 'konbini'),
+            (1047, 'cardsjapan'),
+            (1049, 'payeasyjapan'),
+            (1050, 'webmoneyjapan'),
+            (1051, 'globegcash'),
+            (1052, 'klarnacheckout'),
+            (1053, 'creditcardsindonesia'),
+            (1054, 'biiva'),
+            (1055, 'kartuku'),
+            (1056, 'cimbclicksindonesia'),
+            (1057, 'mandiriecash'),
+            (1058, 'ibmuamalat'),
+            (1059, 'tcash'),
+            (1060, 'indosatdompetku'),
+            (1061, 'mandiriatmautomatic'),
+            (1062, 'pay4me'),
+            (1063, 'danamononlinebanking');
+        ");
+
+        }
+
+        return true;
     }
 }
