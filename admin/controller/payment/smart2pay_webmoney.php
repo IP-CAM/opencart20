@@ -59,6 +59,6 @@ class ControllerPaymentSmart2payWebmoney extends ControllerPaymentSmart2payAbstr
 
     public function index( $data = false )
     {
-        parent::index();
+        return parent::index( $data );
 	}
 }

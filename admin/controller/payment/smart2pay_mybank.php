@@ -59,6 +59,6 @@ class ControllerPaymentSmart2payMybank extends ControllerPaymentSmart2payAbstrac
 
     public function index( $data = false )
     {
-        parent::index();
+        return parent::index( $data );
 	}
 }

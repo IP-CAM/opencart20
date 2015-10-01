@@ -59,6 +59,6 @@ class ControllerPaymentSmart2payPrzelewy24 extends ControllerPaymentSmart2payAbs
 
     public function index( $data = false )
     {
-        parent::index();
+        return parent::index( $data );
 	}
 }

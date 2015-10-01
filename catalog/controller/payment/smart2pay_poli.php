@@ -1,56 +1,64 @@
 <?php
 
-class ControllerPaymentSmart2payPoli extends Controller {
+if( @file_exists( DIR_APPLICATION . 'model/smart2pay/smart2pay_abstract.php' ) )
+    include_once( DIR_APPLICATION . 'model/smart2pay/smart2pay_abstract.php' );
+
+
+class ControllerPaymentSmart2payPoli extends ControllerPaymentSmart2payAbstract
+{
     /**
-     * Index action
-     *  Used within checkout flow
+     * Returns ID of method
+     * @return int
      */
-    public function index() {
-
-        $this->load->model('payment/smart2pay');
-        $this->load->model('payment/smart2pay_poli');
-        $this->load->model('account/address');
-        $this->load->language('payment/smart2pay');
-
-        /*
-         * Set template data
-         */
-        $language = new Language(DIR_LANGUAGE);
-        $translations = $language->load("payment/smart2pay");
-        $data['trans'] = $translations;
-
-        /*
-         * Set checkout method id
-         *   - this might be set by s2p checkout helper in checkout step before last one
-         */
-        $data['checkout_method_id'] = $this->model_payment_smart2pay_poli->getMethodId();
-
-        /*
-         * Set base URL
-         */
-        $server_base = null;
-        if (!isset($this->request->server['HTTPS']) || ($this->request->server['HTTPS'] != 'on')) {
-            $server_base = HTTP_SERVER;
-        } else {
-            $server_base = HTTPS_SERVER;
-        }
-
-        if (is_dir(DIR_TEMPLATE . $this->config->get('config_template') . '/image/payment/smart2pay')) {
-            $this->template = $this->config->get('config_template') . '/template/payment/smart2pay.tpl';
-            $data['base_img_url'] = $server_base . 'catalog/view/theme/' . $this->config->get('config_template') . '/image/payment/smart2pay/methods/';
-        } else {
-            $data['base_img_url'] = $server_base . 'catalog/view/theme/default/image/payment/smart2pay/methods/';
-        }
-
-        /*
-         * Prepare template
-         */
-        if (file_exists(DIR_TEMPLATE . $this->config->get('config_template') . '/template/payment/smart2pay.tpl')) {
-            $this->template = $this->config->get('config_template') . '/template/payment/smart2pay.tpl';
-        } else {
-            $this->template = 'default/template/payment/smart2pay.tpl';
-        }
-
-        return $this->load->view($this->template, $data);
+    public function get_method_id()
+    {
+        return 18;
     }
+
+    /**
+     * Returns a lowercase filename of payment method without smart2pay_ prefix and file extension
+     * eg. onlinebankingthailand for smart2pay_onlinebankingthailand.php file
+     * @return string
+     */
+    public function get_method_short_name()
+    {
+        return 'poli';
+    }
+
+    /**
+     * Returns user friendly method name
+     * @return string
+     */
+    public function get_method_name()
+    {
+        return 'POLi';
+    }
+
+    /**
+     * When saving payment method settings, this method will do any special validations.
+     * Method will set errors to $this->error array
+     *
+     * @param array $settings_arr Array with all values to be validated (from post or other source)
+     * @param array $validated_arr Array with common keys already validated by abstract class
+     *
+     * @return array|false Returns final validated array with settings or false on any error
+     */
+    public function method_validate( $settings_arr, $validated_arr )
+    {
+        return $validated_arr;
+    }
+
+    /**
+     * If any special fields are required for this payment method, this method will return array of fields. If no special fields return false.
+     * @return array|false
+     */
+    public function method_settings()
+    {
+        return false;
+    }
+
+    public function index( $data = false )
+    {
+        return parent::index( $data );
+	}
 }

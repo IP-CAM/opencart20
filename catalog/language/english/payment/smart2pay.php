@@ -1,19 +1,33 @@
 <?php
 
+$_['redirect_secs'] = 'Redirecting in %s seconds. Please wait or click <a href="%s">here</a>.';
+
+/**
+ * Errors
+ */
+$_['err_template_file'] = 'Error: Could not load Smart2Pay template file!';
+$_['err_payment_method'] = 'Payment method not provided.';
+$_['err_order_not_found'] = 'Order details not found in session. Maybe order was already processed?';
+$_['err_country_details'] = 'Couldn\'t obtain country details from order.';
+$_['err_feedback_order_not_found'] = 'Order details not found in request or database.';
+$_['err_feedback_invalid_status'] = 'Return status is invalid.';
+
 /*
  * Labels
  */
 $_['label_choose_payment']           = "Please choose one of the following payment methods.";
 $_['label_choose_payment_alert']     = "Please select a payment method!";
 $_['label_checkout_methods_listing'] = "<i>You will be able to choose from: </i>";
+$_['continue'] = 'Continue';
 
 /*
  * Info
  */
 $_['info_payment_feedback_success']     = "<div style='color: #008000; margin: 0px auto; clear: both; display: table;'><h2 style='text-align: center'>Thank you, the transaction has been processed successfuly. <br /> After we receive the final confirmation, we will release the goods.</h2></div>";
 $_['info_payment_feedback_failed']      = "<div style='color: red; margin: 0px auto; clear: both; display: table;'><h2 style='text-align: center'>There was a problem processing your payment. <br /> Please try again.</h2></div>";
-$_['info_payment_feedback_canceled']   = "<div style='color: blue; margin: 0px auto; clear: both; display: table;'><h2 style='text-align: center'>You have canceled the payment.</h2></div>";
-$_['info_payment_feedback_processing']  = "<div style='color: #008000; margin: 0px auto; clear: both; display: table;'><h2 style='text-align: center'>Thank you, the transaction is pending. <br /> After we receive the final confirmation, we will release the goods.</h2></div>";
+$_['info_payment_feedback_expired']      = "<div style='color: red; margin: 0px auto; clear: both; display: table;'><h2 style='text-align: center'>There was a problem processing your payment. <br /> Please try again.</h2></div>";
+$_['info_payment_feedback_canceled']    = "<div style='color: blue; margin: 0px auto; clear: both; display: table;'><h2 style='text-align: center'>You have canceled the payment. <br /> You can retry payment with other payment method.</h2></div>";
+$_['info_payment_feedback_new']  = "<div style='color: #008000; margin: 0px auto; clear: both; display: table;'><h2 style='text-align: center'>Thank you, the transaction is pending. <br /> After we receive the final confirmation, we will release the goods.</h2></div>";
 
 /*
  * Buttons

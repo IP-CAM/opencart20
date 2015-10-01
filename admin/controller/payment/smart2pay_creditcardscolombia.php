@@ -59,6 +59,6 @@ class ControllerPaymentSmart2payCreditcardscolombia extends ControllerPaymentSma
 
     public function index( $data = false )
     {
-        parent::index();
+        return parent::index( $data );
 	}
 }

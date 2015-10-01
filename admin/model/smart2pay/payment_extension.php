@@ -1166,6 +1166,25 @@ class ModelSmart2payPaymentExtension extends Model
         ");
     }
 
+    public function check_for_updates( $settings_arr = false )
+    {
+        $this->load->model( 'smart2pay/helper' );
+
+        if( $settings_arr === false )
+            $settings_arr = $this->model_smart2pay_helper->get_module_settings();
+
+        if( empty( $settings_arr['smart2pay_db_version'] ) )
+            $settings_arr['smart2pay_db_version'] = '1.0.0';
+
+        if( version_compare( $settings_arr['smart2pay_db_version'], ModelSmart2payHelper::MODULE_VERSION, '<' ) )
+        {
+            if( $this->update( $settings_arr['smart2pay_db_version'] ) )
+                $settings_arr['smart2pay_db_version'] = ModelSmart2payHelper::MODULE_VERSION;
+        }
+
+        return $settings_arr;
+    }
+
     public function update( $old_version )
     {
         $this->load->model( 'smart2pay/helper' );

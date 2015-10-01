@@ -59,6 +59,6 @@ class ControllerPaymentSmart2payMts extends ControllerPaymentSmart2payAbstract
 
     public function index( $data = false )
     {
-        parent::index();
+        return parent::index( $data );
 	}
 }

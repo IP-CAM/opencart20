@@ -42,7 +42,7 @@
             </div>
             <?php
                 $tabs_arr = array();
-                $tabs_arr['current_tab'] = 'current_tab';
+                $tabs_arr['current_tab'] = 'logs';
 
                 echo $model_smart2pay_helper->render_main_plugin_tabs( $tabs_arr );
             ?>

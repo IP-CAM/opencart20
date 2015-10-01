@@ -59,6 +59,6 @@ class ControllerPaymentSmart2payBanktransfer extends ControllerPaymentSmart2payA
 
     public function index( $data = false )
     {
-        parent::index();
+        return parent::index( $data );
 	}
 }

@@ -142,8 +142,12 @@ class ModelPaymentSmart2pay extends Model {
      *
      * @return string
      */
-    public function computeSHA256Hash($message){
-        return hash("sha256", strtolower($message));
+    public function computeSHA256Hash( $message )
+    {
+        if( function_exists( 'mb_strtolower' ) )
+            return hash( 'sha256', mb_strtolower( $message, 'UTF-8' ) );
+        else
+            return hash( 'sha256', strtolower( $message ) );
     }
 
     /**
@@ -154,9 +158,9 @@ class ModelPaymentSmart2pay extends Model {
      *
      * @return string
      */
-    public function computeHash($data, $signature)
+    public function computeHash( $data, $signature )
     {
-        return $this->computeSHA256Hash($data . $signature);
+        return $this->computeSHA256Hash( $data . $signature );
     }
 
     /**

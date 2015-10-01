@@ -59,6 +59,6 @@ class ControllerPaymentSmart2payIdeal extends ControllerPaymentSmart2payAbstract
 
     public function index( $data = false )
     {
-        parent::index();
+        return parent::index( $data );
 	}
 }

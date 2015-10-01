@@ -27,14 +27,43 @@
  */
 class ModelSmart2payHelper extends Model
 {
-    const MODULE_VERSION = '1.0.6';
+    const MODULE_VERSION = '1.0.7';
 
     const ENV_DEMO = 1, ENV_TEST = 2, ENV_LIVE = 3;
-    const S2P_STATUS_OPEN = 1, S2P_STATUS_SUCCESS = 2, S2P_STATUS_CANCELLED = 3, S2P_STATUS_FAILED = 4, S2P_STATUS_EXPIRED = 5, S2P_STATUS_PROCESSING = 7;
     const PAYMENT_METHOD_BT = 1, PAYMENT_METHOD_SIBS = 20;
-    const CONFIRM_ORDER_PAID = 0, CONFIRM_ORDER_FINAL_STATUS = 1, CONFIRM_ORDER_REDIRECT = 2, CONFIRM_ORDER_INITIATE = 3;
+    const CONFIRM_ORDER_INITIATE = 0, CONFIRM_ORDER_REDIRECT = 1, CONFIRM_ORDER_FINAL_STATUS = 2, CONFIRM_ORDER_PAID = 3;
+
+    const S2P_STATUS_OPEN = 1, S2P_STATUS_SUCCESS = 2, S2P_STATUS_CANCELLED = 3, S2P_STATUS_FAILED = 4, S2P_STATUS_EXPIRED = 5, S2P_STATUS_PENDING_CUSTOMER = 6,
+        S2P_STATUS_PENDING_PROVIDER = 7, S2P_STATUS_SUBMITTED = 8, S2P_STATUS_AUTHORIZED = 9, S2P_STATUS_APPROVED = 10, S2P_STATUS_CAPTURED = 11, S2P_STATUS_REJECTED = 12,
+        S2P_STATUS_PENDING_CAPTURE = 13, S2P_STATUS_EXCEPTION = 14, S2P_STATUS_PENDING_CANCEL = 15, S2P_STATUS_REVERSED = 16, S2P_STATUS_COMPLETED = 17, S2P_STATUS_PROCESSING = 18,
+        S2P_STATUS_DISPUTED = 19, S2P_STATUS_CHARGEBACK = 20;
+
+    private static $STATUSES_ARR = array(
+        self::S2P_STATUS_OPEN => 'Open',
+        self::S2P_STATUS_SUCCESS => 'Success',
+        self::S2P_STATUS_CANCELLED => 'Cancelled',
+        self::S2P_STATUS_FAILED => 'Failed',
+        self::S2P_STATUS_EXPIRED => 'Expired',
+        self::S2P_STATUS_PENDING_CUSTOMER => 'Pending on Customer',
+        self::S2P_STATUS_PENDING_PROVIDER => 'Pending on Provider',
+        self::S2P_STATUS_SUBMITTED => 'Submitted',
+        self::S2P_STATUS_AUTHORIZED => 'Authorized',
+        self::S2P_STATUS_APPROVED => 'Approved',
+        self::S2P_STATUS_CAPTURED => 'Captured',
+        self::S2P_STATUS_REJECTED => 'Rejected',
+        self::S2P_STATUS_PENDING_CAPTURE => 'Pending Capture',
+        self::S2P_STATUS_EXCEPTION => 'Exception',
+        self::S2P_STATUS_PENDING_CANCEL => 'Pending Cancel',
+        self::S2P_STATUS_REVERSED => 'Reversed',
+        self::S2P_STATUS_COMPLETED => 'Completed',
+        self::S2P_STATUS_PROCESSING => 'Processing',
+        self::S2P_STATUS_DISPUTED => 'Disputed',
+        self::S2P_STATUS_CHARGEBACK => 'Chargeback',
+    );
+
 
     private static $last_instance = false;
+    private static $modules_settings = array();
 
     public function __construct( $registry )
     {
@@ -51,11 +80,105 @@ class ModelSmart2payHelper extends Model
     static function valid_environment( $env )
     {
         $env = intval( $env );
-        if( !in_array( $env, array( self::ENV_DEMO, self::ENV_TEST, self::ENV_LIVE ) ) )
+        if( empty( $env )
+         or !in_array( $env, array( self::ENV_DEMO, self::ENV_TEST, self::ENV_LIVE ) ) )
             return false;
 
         return true;
     }
+
+    public static function get_statuses()
+    {
+        return self::$STATUSES_ARR;
+    }
+
+    public static function valid_status( $status )
+    {
+        if( empty( $status )
+            or !($statuses_arr = self::get_statuses()) or empty( $statuses_arr[$status] ) )
+            return false;
+
+        return $statuses_arr[$status];
+    }
+
+    public function get_template_file_location( $in_template_path )
+    {
+        if( !($config_template = $this->config->get( 'config_template' )) )
+            $config_template = false;
+
+        if( !isset( $this->request->server['HTTPS'] ) or $this->request->server['HTTPS'] != 'on' )
+            $server_base = HTTP_SERVER;
+        else
+            $server_base = HTTPS_SERVER;
+
+        if( substr( $in_template_path, 0, 1 ) == '/' )
+            $in_template_path = substr( $in_template_path, 1 );
+        if( !empty( $config_template ) and substr( $config_template, 0, 1 ) == '/' )
+            $config_template = substr( $config_template, 1 );
+        if( !empty( $config_template ) and substr( $config_template, -1 ) == '/' )
+            $config_template = substr( $config_template, 0, -1 );
+
+        $return_arr = array();
+        $return_arr['path'] = '';
+        $return_arr['url'] = '';
+        $return_arr['default_path'] = 'default/' . $in_template_path;
+        $return_arr['default_url'] = $server_base.'catalog/view/theme/default/'.$in_template_path;
+
+        if( empty( $config_template )
+         or !@file_exists( DIR_TEMPLATE . $config_template . '/' . $in_template_path ) )
+            $config_template = 'default';
+
+        if( $config_template == 'default'
+        and !@file_exists( DIR_TEMPLATE . $config_template . '/' . $in_template_path ) )
+            return $return_arr;
+
+        $return_arr['path'] = $config_template . '/' . $in_template_path;
+        $return_arr['url'] = $server_base.'catalog/view/theme/'.$config_template . '/' . $in_template_path;
+
+        return $return_arr;
+    }
+
+    public function get_template_dir_location( $in_template_path )
+    {
+        if( !($config_template = $this->config->get( 'config_template' )) )
+            $config_template = false;
+
+        if( !isset( $this->request->server['HTTPS'] ) or $this->request->server['HTTPS'] != 'on' )
+            $server_base = HTTP_SERVER;
+        else
+            $server_base = HTTPS_SERVER;
+
+        if( substr( $in_template_path, 0, 1 ) == '/' )
+            $in_template_path = substr( $in_template_path, 1 );
+        if( substr( $in_template_path, -1 ) == '/' )
+            $in_template_path = substr( $in_template_path, 0, -1 );
+        if( !empty( $config_template ) and substr( $config_template, 0, 1 ) == '/' )
+            $config_template = substr( $config_template, 1 );
+        if( !empty( $config_template ) and substr( $config_template, -1 ) == '/' )
+            $config_template = substr( $config_template, 0, -1 );
+
+        $return_arr = array();
+        $return_arr['path'] = '';
+        $return_arr['url'] = '';
+        $return_arr['default_path'] = 'default/' . $in_template_path;
+        $return_arr['default_url'] = $server_base.'catalog/view/theme/default/'.$in_template_path;
+
+        if( empty( $config_template )
+         or !@file_exists( DIR_TEMPLATE . $config_template .'/'. $in_template_path )
+         or !@is_dir( DIR_TEMPLATE . $config_template .'/'. $in_template_path ) )
+            $config_template = 'default';
+
+        if( $config_template == 'default'
+        and (!@file_exists( DIR_TEMPLATE . $config_template . '/' . $in_template_path )
+                or !@is_dir( DIR_TEMPLATE . $config_template . '/' . $in_template_path )) )
+            return $return_arr;
+
+        $return_arr['path'] = $config_template . '/' . $in_template_path;
+        $return_arr['url'] = $server_base.'catalog/view/theme/'. $config_template . '/' . $in_template_path;
+
+        return $return_arr;
+    }
+
     /**
      * Get logs
      *
@@ -71,6 +194,25 @@ class ModelSmart2payHelper extends Model
             $logs[] = $method;
 
         return $logs;
+    }
+
+    public function method_available_for_country( $method_id, $country_iso_2 )
+    {
+        $method_id = intval( $method_id );
+        $country_iso_2 = trim( $country_iso_2 );
+
+        if( empty( $method_id ) or empty( $country_iso_2 ) )
+            return false;
+
+        if( !($query = $this->db->query(
+                'SELECT CM.method_id '.
+                ' FROM ' . DB_PREFIX . 'smart2pay_country_method AS CM '.
+                ' LEFT JOIN ' . DB_PREFIX . 'smart2pay_country AS C ON C.country_id = CM.country_id '.
+                ' WHERE C.code = \''.$this->db->escape( $country_iso_2 ).'\' AND CM.method_id = \'' . $method_id .'\' LIMIT 0, 1' ))
+            or !$query->num_rows )
+            return false;
+
+        return true;
     }
 
     /**
@@ -137,7 +279,7 @@ class ModelSmart2payHelper extends Model
                 $methods[$method_arr['method_id']]['file_slug'] = 'smart2pay_'.$method_arr['file_slug'];
                 $methods[$method_arr['method_id']]['installed'] = in_array( $methods[$method_arr['method_id']]['file_slug'], $installed_extensions );
                 $methods[$method_arr['method_id']]['db_details'] = $simple_method_arr;
-                $methods[$method_arr['method_id']]['settings'] = $this->model_smart2pay_helper->get_module_settings( $method_arr['provider_value'] );
+                $methods[$method_arr['method_id']]['settings'] = $this->model_smart2pay_helper->get_module_settings( $method_arr['file_slug'] );
                 $methods[$method_arr['method_id']]['countries'] = array();
 
                 $methods['file_slug_to_id'][$method_arr['file_slug']] = $method_arr['method_id'];
@@ -220,7 +362,21 @@ class ModelSmart2payHelper extends Model
     {
         $this->load->model( 'setting/setting' );
 
-        return $this->model_setting_setting->getSetting( 'smart2pay' . ($module_name!=''?'_':'').$module_name );
+        if( $module_name === '' )
+            $module_name = 'smart2pay';
+
+        elseif( substr( $module_name, 0, 10 ) != 'smart2pay_' )
+            $module_name = 'smart2pay_'.$module_name;
+
+        if( isset( self::$modules_settings[$module_name] ) )
+            return self::$modules_settings[$module_name];
+
+        if( empty( self::$modules_settings[$module_name] ) )
+            self::$modules_settings[$module_name] = array();
+
+        self::$modules_settings[$module_name] = $this->model_setting_setting->getSetting( $module_name );
+
+        return self::$modules_settings[$module_name];
     }
 
     public function save_module_settings( $settings_arr, $module_name = '' )
@@ -239,32 +395,22 @@ class ModelSmart2payHelper extends Model
 
         if( $module_name == '' )
         {
-            if( ($new_settings_arr = $this->check_for_updates( $new_settings )) )
+            if( ($new_settings_arr = $this->model_smart2pay_payment_extension->check_for_updates( $new_settings )) )
                 $new_settings = $new_settings_arr;
         }
 
-        $this->model_setting_setting->editSetting( 'smart2pay' . ($module_name!=''?'_':'').$module_name, $new_settings );
+        if( $module_name === '' )
+            $module_name = 'smart2pay';
+
+        elseif( substr( $module_name, 0, 10 ) != 'smart2pay_' )
+            $module_name = 'smart2pay_'.$module_name;
+
+        if( isset( self::$modules_settings[$module_name] ) )
+            unset( self::$modules_settings[$module_name] );
+
+        $this->model_setting_setting->editSetting( $module_name, $new_settings );
 
         return true;
-    }
-
-    public function check_for_updates( $settings_arr = false )
-    {
-        $this->load->model( 'smart2pay/payment_extension' );
-
-        if( $settings_arr === false )
-            $settings_arr = $this->get_module_settings();
-
-        if( empty( $settings_arr['smart2pay_db_version'] ) )
-            $settings_arr['smart2pay_db_version'] = '1.0.0';
-
-        if( version_compare( $settings_arr['smart2pay_db_version'], self::MODULE_VERSION, '<' ) )
-        {
-            if( $this->model_smart2pay_payment_extension->update( $settings_arr['smart2pay_db_version'] ) )
-                $settings_arr['smart2pay_db_version'] = self::MODULE_VERSION;
-        }
-
-        return $settings_arr;
     }
 
     public function save_methods_settings( $methods_settings_arr )
@@ -291,6 +437,7 @@ class ModelSmart2payHelper extends Model
     {
         return array(
             'label'   => '',
+            'hint'   => '',
             'type'    => '',
             'options' => array(),
             'value' => '',
@@ -348,46 +495,57 @@ class ModelSmart2payHelper extends Model
                 <label class="col-sm-2 control-label" for=""><?php echo $element['label']?></label>
                 <div class="col-sm-10"><?php
 
-                        switch( $element['type'] )
-                        {
-                            case 'text':
-                                ?><input class="form-control" style="width: 300px;" type="text" name="<?php echo $name?>" value="<?php echo $element['value']?>" /><?php
-                                break;
+                    switch( $element['type'] )
+                    {
+                        case 'text':
+                            ?><input class="form-control" type="text" id="<?php echo $name?>" name="<?php echo $name?>" value="<?php echo $element['value']?>" /><?php
+                        break;
 
-                            case 'textarea':
-                                ?><textarea class="form-control" style="width: 300px;" name="<?php echo $name?>"><?php echo $element['value']?></textarea><?php
-                                break;
+                        case 'textarea':
+                            ?><textarea class="form-control" id="<?php echo $name?>" name="<?php echo $name?>"><?php echo $element['value']?></textarea><?php
+                        break;
 
-                            case 'select':
-                                ?><select class="form-control" <?php ( !empty( $element['multiple'] )? 'multiple' : '')?> name="<?php echo $name?>"><?php
+                        case 'select':
+                            ?><select class="form-control" <?php ( !empty( $element['multiple'] )? 'multiple' : '')?> name="<?php echo $name?>"><?php
 
-                                if( !empty( $element['options'] ) and is_array( $element['options'] ) )
+                            if( !empty( $element['options'] ) and is_array( $element['options'] ) )
+                            {
+                                foreach( $element['options'] as $key => $label )
                                 {
-                                    foreach( $element['options'] as $key => $label )
-                                    {
-                                        ?><option <?php echo (in_array( $key, (array)$element['value'] ) ? 'selected="selected"' : '' )?> value="<?php echo $key?>"><?php echo $label?></option><?php
-                                    }
+                                    ?><option <?php echo (in_array( $key, (array)$element['value'] ) ? 'selected="selected"' : '' )?> value="<?php echo $key?>"><?php echo $label?></option><?php
                                 }
-                                ?></select><?php
-                                break;
+                            }
+                            ?></select><?php
+                        break;
 
-                            case 'checkbox':
+                        case 'checkbox':
+                            if( empty( $element['options'] ) or !is_array( $element['options'] ) )
+                            {
+                                ?>
+                                <input id="<?php echo $name?>" type="checkbox" value="<?php echo $element['value']?>" name="<?php echo $name?>" <?php echo (!empty( $element['value'] )? 'checked="checked"' : '')?>" />
+                                <?php
+                            } else
+                            {
                                 foreach( $element['options'] as $key => $label )
                                 {
                                     ?>
-                                    <input id="<?php echo $name.$key?>" type="checkbox" value="<?php echo $key?>" name="<?php echo $name.(count($element['options']) > 1 ? '[]' : '')?>" <?php echo (in_array($key, (array) $element['value']) ? 'checked="checked"' : '')?>">
-                                    <label for="<?php echo $name.$key?>"><?php echo $label?></label>
+                                    <input id="<?php echo $name . $key ?>" type="checkbox" value="<?php echo $key ?>" name="<?php echo $name . ( count( $element['options'] ) > 1 ? '[]' : '' ) ?>" <?php echo( in_array( $key, (array)$element['value'] ) ? 'checked="checked"' : '' ) ?>">
+                                    <label for="<?php echo $name . $key ?>"><?php echo $label ?></label>
                                     <?php
                                 }
-                                break;
-                        }
+                            }
+                        break;
+                    }
 
-                        if( isset( $errors[$name] ) )
-                        {
-                            ?><div class="text-danger"><?php echo $errors[$name]?></div><?php
-                        }
+                    if( !empty( $element['hint'] ) )
+                        echo '<em>'.$element['hint'].'</em>';
 
-                    ?></div>
+                    if( isset( $errors[$name] ) )
+                    {
+                        ?><div class="text-danger"><?php echo $errors[$name]?></div><?php
+                    }
+
+                ?></div>
             </div>
             <?php
         }
@@ -619,16 +777,17 @@ class ModelSmart2payHelper extends Model
             //    ),
             'smart2pay_order_confirm' =>
                 array(
-                    'label'   => 'Confirm order',
+                    'label'   => 'Make order visible',
                     'type'    => 'select',
                     'options' =>
                         array(
-                            self::CONFIRM_ORDER_PAID => 'Only when paid',
-                            self::CONFIRM_ORDER_FINAL_STATUS => 'On final status',
-                            self::CONFIRM_ORDER_REDIRECT => 'On redirect',
                             self::CONFIRM_ORDER_INITIATE => 'On initiate',
+                            self::CONFIRM_ORDER_REDIRECT => 'On redirect',
+                            self::CONFIRM_ORDER_FINAL_STATUS => 'On final status',
+                            self::CONFIRM_ORDER_PAID => 'Only when paid',
                         ),
-                    'value' => self::CONFIRM_ORDER_PAID,
+                    'value' => self::CONFIRM_ORDER_INITIATE,
+                    'hint' => 'Tells plugin when to change order status and make it visible to customer.',
                 ),
             'smart2pay_order_status_new' =>
                 array(
@@ -722,7 +881,8 @@ class ModelSmart2payHelper extends Model
                 array(
                     'label'   => 'Sort Order',
                     'type'    => 'text',
-                    'value'   => ''
+                    'value'   => 0,
+                    'hint' => 'Sort order will change order of all Smart2Pay payment methods',
                 ),
         );
 
@@ -744,22 +904,5 @@ class ModelSmart2payHelper extends Model
             return array();
 
         return $moduleSettings;
-    }
-
-    /**
-     * Get logs
-     *
-     * @return array
-     */
-    public function getLogs()
-    {
-        $logs = array();
-
-        $query = $this->db->query( 'SELECT * FROM ' . DB_PREFIX . 'smart2pay_log ORDER BY log_created DESC' );
-
-        foreach( $query->rows as $method )
-            $logs[] = $method;
-
-        return $logs;
     }
 }

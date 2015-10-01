@@ -27,6 +27,7 @@
 class ControllerPaymentSmart2pay extends Controller
 {
     const DEMO_POST_URL = 'https://apitest.smart2pay.com', DEMO_MID = 1045, DEMO_SITE_ID = 30291, DEMO_SIGNATURE = '9fc01939-71b3';
+
     /**
      * Index action
      *  Used within checkout flow
@@ -98,7 +99,6 @@ class ControllerPaymentSmart2pay extends Controller
      */
     public function pay()
     {
-        $this->load->model( 'setting/setting' );
         $this->load->model( 'payment/smart2pay' );
         $this->load->model( 'account/address' );
         $this->load->model( 'checkout/order' );
@@ -106,23 +106,55 @@ class ControllerPaymentSmart2pay extends Controller
 
         $this->load->language( 'payment/smart2pay' );
 
-        if( !empty($this->session->data['smart2pay_checkout_method_id'] ) )
-            unset( $this->session->data['smart2pay_checkout_method_id'] );
+        if( !($template_search = $this->model_smart2pay_helper->get_template_file_location( 'template/smart2pay/smart2pay_send_form.tpl' ))
+            or !is_array( $template_search ) )
+        {
+            trigger_error( $this->language->get( 'err_template_file' ) );
+            exit();
+        } else
+        {
+            if( !empty( $template_search['path'] ) )
+                $template_file = $template_search['path'];
+            else
+                $template_file = $template_search['default_path'];
+        }
 
-        /*
-         * Get address
-         */
-        $payment_address = null;
+        $data = array();
 
-        if( $this->customer->isLogged() && isset( $this->session->data['payment_address_id'] ) )
-            $payment_address = $this->model_account_address->getAddress( $this->session->data['payment_address_id'] );
-        elseif( isset( $this->session->data['guest'] ) )
-            $payment_address = $this->session->data['guest']['payment'];
+        $data['header'] = $this->load->controller( 'common/header' );
+        $data['footer'] = $this->load->controller( 'common/footer' );
+        $data['column_left'] = $this->load->controller('common/column_left');
+        $data['column_right'] = $this->load->controller('common/column_right');
+        $data['content_top'] = $this->load->controller('common/content_top');
+        $data['content_bottom'] = $this->load->controller('common/content_bottom');
 
-        /*
-         * Check pay request
-         */
-        $this->checkPayRequest($payment_address);
+        $error_arr = array();
+        $error_arr['error'] = '';
+
+        $method_id = 0;
+        if( !empty( $this->request->get['method'] ) )
+            $method_id = intval( $this->request->get['method'] );
+
+        if( empty( $method_id ) )
+            $error_arr['error'] .= (!empty( $error_arr['error'] )?'<br/>':'').$this->language->get( 'err_payment_method' );
+
+        elseif( empty( $this->session->data['order_id'] )
+         or !($order = $this->model_checkout_order->getOrder( $this->session->data['order_id'] )) )
+            $error_arr['error'] .= (!empty( $error_arr['error'] )?'<br/>':'').$this->language->get( 'err_order_not_found' );
+
+        elseif( empty( $order['payment_iso_code_2'] ) )
+            $error_arr['error'] .= (!empty( $error_arr['error'] )?'<br/>':'').$this->language->get( 'err_country_details' );
+
+        elseif( !$this->model_smart2pay_helper->method_available_for_country( $method_id, $order['payment_iso_code_2'] ))
+            $error_arr['error'] .= (!empty( $error_arr['error'] )?'<br/>':'').$this->language->get( 'err_country_details' );
+
+        $data['error_warning'] = $error_arr['error'];
+
+        if( !empty( $error_arr['error'] ) )
+        {
+            $this->response->setOutput( $this->load->view( $template_file, $data ) );
+            return;
+        }
 
         /*
          * Set data
@@ -152,14 +184,13 @@ class ControllerPaymentSmart2pay extends Controller
         }
 
         if( $settings['smart2pay_send_order_number_as_product_description'] )
-            $settings['smart2pay_product_description'] = 'Ref. no.: ' . $this->session->data['order_id'];
+            $settings['smart2pay_product_description'] = 'Ref. no: ' . $this->session->data['order_id'];
         else
             $settings['smart2pay_product_description'] = $settings['smart2pay_custom_product_description'];
 
         $data['settings'] = $settings;
 
-        $order      = $this->model_checkout_order->getOrder($this->session->data['order_id']);
-        $orderTotal = round($order['total'] * $order['currency_value'] * 100);
+        $orderTotal = round( $order['total'] * $order['currency_value'] * 100 );
 
         $skipHpp = $settings['smart2pay_skip_payment_page'];
 
@@ -173,13 +204,13 @@ class ControllerPaymentSmart2pay extends Controller
             'Amount'           => $orderTotal,
             'Currency'         => $order['currency_code'],
             'ReturnURL'        => $settings['smart2pay_return_url'],
-            'IncludeMethodIDs' => $this->request->get['method'],
+            'IncludeMethodIDs' => $method_id,
             'CustomerName'     => $order['payment_firstname'] . ' ' . $order['payment_lastname'],
             'CustomerFirstName'=> $order['payment_firstname'],
             'CustomerLastName' => $order['payment_lastname'],
             'CustomerEmail'    => $order['email'],
             'Country'          => $order['payment_iso_code_2'],
-            'MethodID'         => $this->request->get['method'],
+            'MethodID'         => $method_id,
             'Description'      => $settings['smart2pay_product_description'],
             'SkipHPP'          => $skipHpp,
             'RedirectInIframe' => $settings['smart2pay_redirect_in_iframe'],
@@ -193,48 +224,22 @@ class ControllerPaymentSmart2pay extends Controller
                 unset( $data['payment_data'][$key] );
         }
 
-        $stringToHash = $this->model_payment_smart2pay->createStringToHash($data['payment_data']);
+        $stringToHash = $this->model_payment_smart2pay->createStringToHash( $data['payment_data'] );
 
         $data['string_to_hash'] = $stringToHash;
 
-        $data['payment_data']['Hash'] = $this->model_payment_smart2pay->computeHash($stringToHash, $settings['smart2pay_signature']);
-
-        //$this->children = array(
-        //    'common/column_left',
-        //    'common/column_right',
-        //    'common/content_top',
-        //    'common/content_bottom',
-        //    'common/footer',
-        //    'common/header'
-        //);
-
-        $data['header'] = $this->load->controller('common/header');
-        $data['footer'] = $this->load->controller('common/footer');
-        $data['column_left'] = $this->load->controller('common/column_left');
-        $data['column_right'] = $this->load->controller('common/column_right');
-        $data['content_top'] = $this->load->controller('common/content_top');
-        $data['content_bottom'] = $this->load->controller('common/content_bottom');
+        $data['payment_data']['Hash'] = $this->model_payment_smart2pay->computeHash( $stringToHash, $settings['smart2pay_signature'] );
 
         
       	//if order is unconfirmed we confirm it depending on the smart2pay_order_confirm flag
 		//status is new for now
 		if( $settings['smart2pay_order_confirm'] == ModelSmart2payHelper::CONFIRM_ORDER_INITIATE )
         {
-			$this->model_payment_smart2pay->log( 'Confirming order on initiate payment', 'info' );
-			$this->model_checkout_order->addOrderHistory( $this->session->data['order_id'], $settings['smart2pay_order_status_new'] );
-		}	
-		
-
-        /*
-         * Prepare template
-         */
-        if (file_exists(DIR_TEMPLATE . $this->config->get('config_template') . '/template/smart2pay/smart2pay_send_form.tpl')) {
-            $this->template = $this->config->get('config_template') . '/template/smart2pay/smart2pay_send_form.tpl';
-        } else {
-            $this->template = 'default/template/payment/smart2pay_send_form.tpl';
+            $this->model_payment_smart2pay->log( 'Confirming order on initiate payment', 'info' );
+            $this->model_checkout_order->addOrderHistory( $this->session->data['order_id'], $settings['smart2pay_order_status_new'] );
         }
 
-        $this->response->setOutput( $this->load->view( $this->template, $data ) );
+        $this->response->setOutput( $this->load->view( $template_file, $data ) );
     }
 
     /**
@@ -243,159 +248,138 @@ class ControllerPaymentSmart2pay extends Controller
      */
     public function feedback()
     {
-        $this->load->model('payment/smart2pay');
-        $this->load->model('setting/setting');
-        $this->load->model('checkout/order');
+        $this->load->model( 'payment/smart2pay' );
+        $this->load->model( 'checkout/order' );
         $this->load->model( 'smart2pay/helper' );
 
-		//$settings = $this->model_setting_setting->getSetting('smart2pay');
+        $data = array();
+
+        $error_arr = array();
+        $error_arr['error'] = '';
+
+        $data['lang'] = $this->load->language( 'payment/smart2pay' );
+
+        $order_id = 0;
+        if( !empty( $this->request->get['MerchantTransactionID'] ) )
+            $order_id = intval( $this->request->get['MerchantTransactionID'] );
+        $status_id = 0;
+        if( !empty( $this->request->get['data'] ) )
+            $status_id = intval( $this->request->get['data'] );
+
+        if( empty( $order_id )
+         or !($order = $this->model_checkout_order->getOrder( $order_id )) )
+            $error_arr['error'] .= (!empty( $error_arr['error'] )?'<br/>':'').$this->language->get( 'err_feedback_order_not_found' );
+
+        if( empty( $status_id )
+         or !$this->model_smart2pay_helper->valid_status( $status_id ) )
+            $error_arr['error'] .= (!empty( $error_arr['error'] )?'<br/>':'').$this->language->get( 'err_feedback_invalid_status' );
+
+        $data['error_warning'] = $error_arr['error'];
+
+        $this->model_payment_smart2pay->log( '>>> START FEEDBACK'.(!empty( $order_id )?' for order #'.$order_id:'').(!empty( $error_arr['error'] )?' (with error)':''), 'info' );
+
+        if( !empty( $error_arr['error'] ) )
+        {
+            $data['header'] = $this->load->controller( 'common/header' );
+            $data['footer'] = $this->load->controller( 'common/footer' );
+            $data['column_left'] = $this->load->controller( 'common/column_left' );
+            $data['column_right'] = $this->load->controller( 'common/column_right' );
+            $data['content_top'] = $this->load->controller( 'common/content_top' );
+            $data['content_bottom'] = $this->load->controller( 'common/content_bottom' );
+
+            if( !($template_search = $this->model_smart2pay_helper->get_template_file_location( 'template/smart2pay/smart2pay_feedback.tpl' ))
+             or !is_array( $template_search ) )
+            {
+                trigger_error( $this->language->get( 'err_template_file' ) );
+                exit();
+            } else
+            {
+                if( !empty( $template_search['path'] ) )
+                    $template_file = $template_search['path'];
+                else
+                    $template_file = $template_search['default_path'];
+            }
+
+            $this->response->setOutput( $this->load->view( $template_file, $data ) );
+            return;
+        }
+
         $settings = $this->model_smart2pay_helper->get_module_settings();
 
-        $status   = null;
-        $order    = null;
-        $orderID  = null;
-        
-        $server_base = null;
-    	if (!isset($this->request->server['HTTPS']) || ($this->request->server['HTTPS'] != 'on')) {
-				$server_base = HTTP_SERVER;
-		} else 
-		{
-				$server_base = HTTPS_SERVER;
-		}
-        
-        $redirect = $server_base . 'index.php';
-
-        if (isset($this->request->get['MerchantTransactionID'])) {
-            $orderID  = $this->request->get['MerchantTransactionID'];
-            $order = $order = $this->model_checkout_order->getOrder($orderID);
-        }
-        
-        $this->model_payment_smart2pay->log('>>>START FEEDBACK', 'info');
-
-        if (isset($this->request->get['data'])) {
-            switch ($this->request->get['data']) {
-                case 2:
-                    $status   = 'success';
-                    $redirect = $server_base . 'index.php?route=checkout/success';
-                    break;
-                case 3:
-                    $status   = 'canceled';
-                    //$redirect = $server_base . 'index.php?route=checkout/checkout';
-                    break;
-                case 4:
-                    $status   = 'failed';
-                    //$redirect = $server_base . 'index.php?route=checkout/checkout';
-                    break;
-                case 7:
-                    $status   = 'processing';
-                    $redirect = $server_base . 'index.php?route=checkout/success';
-                    break;
-            }
-        }
-
-        $this->model_payment_smart2pay->log('>>>Customer redirected for order #'. $orderID . ' with status ' . $status, 'info');
-
-        if ( ! $status || ! $order) {
-            $this->model_payment_smart2pay->log('>>> No status or order' . $status, 'info');
-            $this->response->redirect($server_base . 'index.php');
-        } else if ($settings['smart2pay_order_confirm'] == ModelSmart2payHelper::CONFIRM_ORDER_REDIRECT ) {
-            // If current status is
-            // settings::smart2pay_order_status_success,
-            // which most probably means that notification arrived just
-            // before s2p redirected to merchant site (here), do not change status!
-            if ($order['order_status_id'] != $settings['smart2pay_order_status_success']) {
-                if (in_array($status, array('success', 'processing'))) {
-                    if ($order)
-                    {
-                        $this->model_checkout_order->addOrderHistory(
-                            $orderID,
-                            $settings['smart2pay_order_status_new']
-                        );
-                    }
-                } else {
-                    if ($order) {
-                        $this->model_checkout_order->addOrderHistory(
-                            $orderID,
-                            $settings['smart2pay_order_status_' . $status]
-                        );
-                    }
-                }
-            }
-		}
-		
-		if (isset($this->session->data['order_id'])) {
-			$this->cart->clear();
-			if (isset($this->session->data['shipping_method'])) {
-				unset($this->session->data['shipping_method']);
-			}
-			if (isset($this->session->data['shipping_methods'])) {
-				unset($this->session->data['shipping_methods']);
-			}
-			if (isset($this->session->data['payment_method'])) {
-				unset($this->session->data['payment_method']);
-			}
-			if (isset($this->session->data['payment_methods'])) {
-				unset($this->session->data['payment_methods']);
-			}
-			if (isset($this->session->data['guest'])) {
-				unset($this->session->data['guest']);
-			}
-			if (isset($this->session->data['comment'])) {
-				unset($this->session->data['comment']);
-			}
-			if (isset($this->session->data['order_id'])) {
-				unset($this->session->data['order_id']);
-			}
-			if (isset($this->session->data['coupon'])) {
-				unset($this->session->data['coupon']);
-			}
-			if (isset($this->session->data['reward'])) {
-				unset($this->session->data['reward']);
-			}
-			if (isset($this->session->data['voucher'])) {
-				unset($this->session->data['voucher']);
-			}
-			if (isset($this->session->data['vouchers'])) {
-				unset($this->session->data['vouchers']);
-			}
-		}
-	
-        $language = new Language(DIR_LANGUAGE);
-        $translations = $language->load('payment/smart2pay');
-
-        $this->children = array(
-            'common/column_left',
-            'common/column_right',
-            'common/content_top',
-            'common/content_bottom',
-            'common/footer',
-            'common/header'
+        $status_id_to_string = array(
+            ModelSmart2payHelper::S2P_STATUS_OPEN => 'new',
+            ModelSmart2payHelper::S2P_STATUS_SUCCESS => 'success',
+            ModelSmart2payHelper::S2P_STATUS_CANCELLED => 'canceled',
+            ModelSmart2payHelper::S2P_STATUS_FAILED => 'failed',
+            ModelSmart2payHelper::S2P_STATUS_EXPIRED => 'expired',
+            ModelSmart2payHelper::S2P_STATUS_PENDING_CUSTOMER => 'new',
+            ModelSmart2payHelper::S2P_STATUS_PENDING_PROVIDER => 'new',
+            ModelSmart2payHelper::S2P_STATUS_SUBMITTED => 'new',
+            ModelSmart2payHelper::S2P_STATUS_PROCESSING => 'new',
+            ModelSmart2payHelper::S2P_STATUS_AUTHORIZED => 'new',
+            ModelSmart2payHelper::S2P_STATUS_APPROVED => 'new',
+            ModelSmart2payHelper::S2P_STATUS_CAPTURED => 'new',
+            ModelSmart2payHelper::S2P_STATUS_REJECTED => 'failed',
+            ModelSmart2payHelper::S2P_STATUS_PENDING_CAPTURE => 'new',
+            ModelSmart2payHelper::S2P_STATUS_EXCEPTION => 'new',
+            ModelSmart2payHelper::S2P_STATUS_PENDING_CANCEL => 'new',
+            ModelSmart2payHelper::S2P_STATUS_REVERSED => 'new',
+            ModelSmart2payHelper::S2P_STATUS_COMPLETED => 'success',
+            ModelSmart2payHelper::S2P_STATUS_PROCESSING => 'new',
+            ModelSmart2payHelper::S2P_STATUS_DISPUTED => 'new',
+            ModelSmart2payHelper::S2P_STATUS_CHARGEBACK => 'new',
         );
 
-        $data['header'] = $this->load->controller('common/header');
-        $data['column_left'] = $this->load->controller('common/column_left');
-        $data['column_right'] = $this->load->controller('common/column_right');
-        $data['content_top'] = $this->load->controller('common/content_top');
+        if( !empty( $status_id_to_string[$status_id] ) )
+            $status_string = $status_id_to_string[$status_id];
+        else
+            $status_string = 'new';
 
-        $data['feedback'] = $translations['info_payment_feedback_' . $status];
+        $db_status = 0;
+        if( !empty( $settings['smart2pay_order_status_' . $status_string] ) )
+            $db_status = $settings['smart2pay_order_status_' . $status_string];
+
+        if( $settings['smart2pay_order_confirm'] == ModelSmart2payHelper::CONFIRM_ORDER_REDIRECT )
+        {
+            $this->model_payment_smart2pay->log( '>>> Return URL: Order #'. $order_id . ' updated with status ' . $status_string, 'info' );
+            $this->model_checkout_order->addOrderHistory( $order_id, $db_status );
+        }
+
+        if( isset( $data['lang']['info_payment_feedback_' . $status_string] ) )
+            $data['feedback'] = $data['lang']['info_payment_feedback_' . $status_string];
+        else
+            $data['feedback'] = $this->language->get( 'info_payment_feedback_failed' );
+
+        if( !in_array( $status_string, array( 'new', 'success' ) ) )
+            $redirect = $this->url->link( 'checkout/failure', (!empty( $this->session->data['token'] )?'token=' . $this->session->data['token']:''), 'SSL' );
+        else
+            $redirect = $this->url->link( 'checkout/success', (!empty( $this->session->data['token'] )?'token=' . $this->session->data['token']:''), 'SSL' );
+
         $data['redirect'] = $redirect;
 
-		$this->model_payment_smart2pay->log('>>>END FEEDBACK', 'info');
-		
-		if(strcmp($status, 'success') != 0) {
-			/*
-			 * Prepare template
-			 */
-			if (file_exists(DIR_TEMPLATE . $this->config->get('config_template') . '/template/smart2pay/smart2pay_feedback.tpl')) {
-				$this->template = $this->config->get('config_template') . '/template/smart2pay/smart2pay_feedback.tpl';
-			} else {
-				$this->template = 'default/template/payment/smart2pay_feedback.tpl';
-			}
+		$this->model_payment_smart2pay->log( '>>>END FEEDBACK', 'info' );
 
-			$this->response->setOutput($this->load->view($this->template, $data));
-		} else {
-			$this->response->redirect($this->url->link('checkout/success', '', 'SSL'));
-		}
+        $data['header'] = $this->load->controller( 'common/header' );
+        $data['footer'] = $this->load->controller( 'common/footer' );
+        $data['column_left'] = $this->load->controller( 'common/column_left' );
+        $data['column_right'] = $this->load->controller( 'common/column_right' );
+        $data['content_top'] = $this->load->controller( 'common/content_top' );
+        $data['content_bottom'] = $this->load->controller( 'common/content_bottom' );
+
+        if( !($template_search = $this->model_smart2pay_helper->get_template_file_location( 'template/smart2pay/smart2pay_feedback.tpl' ))
+         or !is_array( $template_search ) )
+        {
+            trigger_error( $this->language->get( 'err_template_file' ) );
+            exit();
+        } else
+        {
+            if( !empty( $template_search['path'] ) )
+                $template_file = $template_search['path'];
+            else
+                $template_file = $template_search['default_path'];
+        }
+
+        $this->response->setOutput( $this->load->view( $template_file, $data ) );
     }
 
     /**
@@ -451,8 +435,12 @@ class ControllerPaymentSmart2pay extends Controller
                 $response['StatusID'] = 0;
             if( empty( $response['MerchantTransactionID'] ) )
                 $response['MerchantTransactionID'] = 0;
+            if( empty( $response['NotificationType'] ) )
+                $response['NotificationType'] = '';
+            if( empty( $response['PaymentID'] ) )
+                $response['PaymentID'] = 0;
 
-			$this->model_payment_smart2pay->log( 'Received notification from Smart2Pay: ' . $data, 'info' );
+			$this->model_payment_smart2pay->log( 'Notification from Smart2Pay: ' . $data, 'info' );
 
 			$this->model_payment_smart2pay->log( 'StatusID = ' . $response['StatusID'], 'info' );
             $this->model_payment_smart2pay->log( 'MerchantTransactionID = ' . $response['MerchantTransactionID'], 'info' );
@@ -491,56 +479,62 @@ class ControllerPaymentSmart2pay extends Controller
             {
                 $this->model_payment_smart2pay->log( 'Hashes match', 'info' );
 
-                $processed_ok = false;
-                
+                // Leave order in pending if notification status is open
                 if( $order['order_status_id'] == 0
-                and $response['StatusID'] != ModelSmart2payHelper::S2P_STATUS_OPEN // Leave order in pending if notification status is open
-                )
+                and $response['StatusID'] != ModelSmart2payHelper::S2P_STATUS_OPEN )
                 {
 					// If order is unconfirmed we confirm it depending on the smart2pay_order_confirm flag
 					// status is new for now
-					if( $settings['smart2pay_order_confirm'] != ModelSmart2payHelper::CONFIRM_ORDER_REDIRECT )
+					if( $settings['smart2pay_order_confirm'] == ModelSmart2payHelper::CONFIRM_ORDER_FINAL_STATUS )
                     {
 						$this->model_payment_smart2pay->log('Confirming order..', 'info');
 						$this->model_checkout_order->addOrderHistory( $order_id, $settings['smart2pay_order_status_new'] );
 					}
 				}
-				
-				$order = $this->model_checkout_order->getOrder( $order_id );
+
+                $order = $this->model_checkout_order->getOrder( $order_id );
 
                 $this->model_payment_smart2pay->log( 'Order status is ' . $order['order_status_id'], 'info' );
 
-				$order['payment_method'] = $this->model_payment_smart2pay->getPaymentMethodNameById($response['MethodID']);
-				
-				$this->model_payment_smart2pay->log('> DEBUG: Payment method used was ' . $order['payment_method'], 'info');
+                if( empty( $order['payment_method'] ) )
+                    $order['payment_method'] = 'Smart2Pay';
+
+				$this->model_payment_smart2pay->log( '> DEBUG: Payment method used was ' . $order['payment_method'], 'info' );
                
                 /**
                  * Check status ID
                  */
-                switch ($response['StatusID']) {
-                    // Status = open
-                    case '1':
-                        $this->model_payment_smart2pay->log('Payment state is open', 'info');
-                        $processed_ok = true;
-                        break;
-                    // Status = success
-                    case '2':
-                        $this->model_payment_smart2pay->log('Payment state is success', 'info');
+                switch( $response['StatusID'] )
+                {
+                    case ModelSmart2payHelper::S2P_STATUS_OPEN:
+                        $this->model_payment_smart2pay->log( 'Payment state is open', 'info' );
+                    break;
+
+                    case ModelSmart2payHelper::S2P_STATUS_SUCCESS:
+                        $this->model_payment_smart2pay->log( 'Order #'.$order_id.': Payment success', 'info' );
 
                         // cheking amount  and currency
-                        $orderAmount =  round($order['total'] * $order['currency_value'] * 100);
+                        $orderAmount = round( $order['total'] * $order['currency_value'] * 100 );
                         $orderCurrency = $order['currency_code'];
 
-                        if( ((int) $orderAmount === (int) $response['Amount']) && ($orderCurrency == $response['Currency'])) {
+                        if( (int) $orderAmount !== (int) $response['Amount']
+                         or $orderCurrency != $response['Currency'] )
+                            $this->model_payment_smart2pay->log(
+                                'Amount or currency do NOT match (' . $orderAmount . '/' . $response['Amount'] . ', ' . $orderCurrency . '/' . $response['Currency'] . ')',
+                                'info'
+                            );
 
-                            $this->model_payment_smart2pay->log('Amount and currency match', 'info');
+                        else
+                        {
+                            $this->model_payment_smart2pay->log( 'Amount and currency match', 'info' );
 
-                            if ($order['order_status_id'] == 0) {
-                                $this->model_payment_smart2pay->log('Confirming order..', 'info');
-                                $this->model_checkout_order->addOrderHistory($order_id, $settings['smart2pay_order_status_new']);
+                            if( $order['order_status_id'] == 0 )
+                            {
+                                $this->model_payment_smart2pay->log( 'Confirming order..', 'info' );
+                                $this->model_checkout_order->addOrderHistory( $order_id, $settings['smart2pay_order_status_new'] );
                             }
 
-                            $this->model_payment_smart2pay->log('Updating order - setting received notification to history..', 'info');
+                            $this->model_payment_smart2pay->log( 'Updating order - setting received notification to history.', 'info' );
 
                             $this->model_checkout_order->addOrderHistory(
                                 $order_id,
@@ -548,85 +542,82 @@ class ControllerPaymentSmart2pay extends Controller
                                 '[' . date('Y-m-d H:i:s') . '] Smart2Pay :: order has been paid. [Method: ' . $order['payment_method'] . ']'
                             );
 
-                            $processed_ok = true;
-
-                            if ($settings['smart2pay_notify_customer_by_email']) {
+                            if( !empty( $settings['smart2pay_notify_customer_by_email'] ) )
+                            {
                                 try {
                                     // Inform customer
                                     $this->model_payment_smart2pay->log('Informing customer via email', 'info');
-                                    $this->informCustomer($order);
+                                    $this->informCustomer( $order );
                                 } catch (Exception $e) {
                                     $this->model_payment_smart2pay->log('Could not send e-mail: ' . $e->getMessage(), 'exception');
                                 }
                             }
                         }
-                        else{
-                            $this->model_payment_smart2pay->log(
-                                'Amount and currency do NOT match (' . $orderAmount . '/' . $response['Amount'] . ' and ' . $orderCurrency . '/' . $response['Currency'] . ')',
-                                'info'
-                            );
-                        }
-                        break;
-                    // Status = canceled
-                    case 3:
-                        $this->model_payment_smart2pay->log('Payment state is cancelled', 'info');
-						if ($order['order_status_id']) {
-							$this->model_payment_smart2pay->log('Updating order..', 'info');
+                    break;
+
+                    case ModelSmart2payHelper::S2P_STATUS_CANCELLED:
+                        $this->model_payment_smart2pay->log( 'Payment state is cancelled', 'info' );
+
+						if( $order['order_status_id'] )
+                        {
+							$this->model_payment_smart2pay->log( 'Updating order..', 'info' );
 							$this->model_checkout_order->addOrderHistory(
 								$order_id,
 								$settings['smart2pay_order_status_canceled'],
 								'[' . date('Y-m-d H:i:s') . '] Smart2Pay :: order payment has been canceled. [Method: ' . $order['payment_method'] . ']'
 							);
-                            $processed_ok = true;
 						}
-						
-                        break;
-                    // Status = failed
-                    case 4:
+                    break;
+
+                    case ModelSmart2payHelper::S2P_STATUS_FAILED:
                         $this->model_payment_smart2pay->log('Payment state is failed', 'info');
-						if ($order['order_status_id']) {
+
+						if( $order['order_status_id'] )
+                        {
 							$this->model_checkout_order->addOrderHistory(
 								$order_id,
 								$settings['smart2pay_order_status_failed'],
 								'[' . date('Y-m-d H:i:s') . '] Smart2Pay :: order payment has failed. [Method: ' . $order['payment_method'] . ']'
 							);
-                            $processed_ok = true;
 						}
-                        break;
+                    break;
+
                     // Status = expired
-                    case 5:
-                        $this->model_payment_smart2pay->log('Payment state is expired', 'info');
-						if ($order['order_status_id']) {
+                    case ModelSmart2payHelper::S2P_STATUS_EXPIRED:
+                        $this->model_payment_smart2pay->log( 'Payment state is expired', 'info' );
+
+						if( $order['order_status_id'] )
+                        {
 							$this->model_checkout_order->addOrderHistory(
 								$order_id,
 								$settings['smart2pay_order_status_expired'],
 								'[' . date('Y-m-d H:i:s') . '] Smart2Pay :: order payment has expired. [Method: ' . $order['payment_method'] . ']'
 							);
-                            $processed_ok = true;
 						}
-                        break;
+                    break;
 
                     default:
-                        $this->model_payment_smart2pay->log('Payment state is unknown. [Method: ' . $order['payment_method'] . ']', 'info');
-                        break;
+                        $this->model_payment_smart2pay->log( 'Payment state is unknown ('.$response['StatusID'].'). [Method: ' . $order['payment_method'] . ']', 'info');
+                    break;
                 }
 
-                if ($processed_ok) { //if notification was processed OK, we respond
-                    // NotificationType IS payment
-                    if (strtolower($response['NotificationType']) == 'payment') {
-                        // prepare string for the hash
-                        $responseHashString = 'notificationTypePaymentPaymentId' . $response['PaymentID'];
-                        // prepare response data
-                        $responseData = array(
-                            'NotificationType' => 'Payment',
-                            'PaymentID' => $response['PaymentID'],
-                            'Hash' => $recomposedHash = $this->model_payment_smart2pay->computeHash($responseHashString, $settings['smart2pay_signature'])
-                        );
-                        // output response
-                        echo 'NotificationType=payment&PaymentID=' . $responseData['PaymentID'] . '&Hash=' . $responseData['Hash'];
-                    }
-                } else {
-                    echo 'OpenCart Plugin was not able to process this notification';
+                //if notification was processed OK, we respond
+                // NotificationType IS payment
+                if( strtolower( $response['NotificationType'] ) == 'payment' )
+                {
+                    // prepare string for the hash
+                    $responseHashString = 'notificationTypePaymentPaymentId' . $response['PaymentID'];
+                    $recomposedHash = $this->model_payment_smart2pay->computeHash( $responseHashString, $settings['smart2pay_signature'] );
+
+                    // prepare response data
+                    $responseData = array(
+                        'NotificationType' => 'Payment',
+                        'PaymentID' => $response['PaymentID'],
+                        'Hash' => $recomposedHash,
+                    );
+
+                    // output response
+                    echo 'NotificationType=payment&PaymentID=' . $responseData['PaymentID'] . '&Hash=' . $responseData['Hash'];
                 }
             }
         } catch( Exception $e )
@@ -684,37 +675,5 @@ class ControllerPaymentSmart2pay extends Controller
         $mail->send();
 
         $this->model_payment_smart2pay->log( 'Informed customer via email (mail sent)', 'info' );
-    }
-
-    /**
-     * Check pay request
-     */
-    private function checkPayRequest()
-    {
-        $this->load->model( 'payment/smart2pay' );
-
-        $error = null;
-
-        if( !isset( $this->session->data['order_id'] ) )
-            $error = 'Order ID is not set. Possible that session has been cleared.';
-        elseif( !isset( $this->request->get['method'] ) )
-            $error = 'Payment method ID is missing.';
-        /*
-        elseif( !in_array( $this->request->get['method'], $this->model_payment_smart2pay->getActiveMethods( $payment_address ) ) )
-            $error = 'Payment method ID is not one of the active method IDs.';
-        */
-
-        if( $error )
-        {
-            $server_base = null;
-            if( !isset( $this->request->server['HTTPS'] )
-                or $this->request->server['HTTPS'] != 'on' )
-                $server_base = HTTP_SERVER;
-            else
-                $server_base = HTTPS_SERVER;
-
-            $this->model_payment_smart2pay->log( $error, 'hijack' );
-            header( 'Location: '.$server_base.'?smart2pay-pay-attempt-error' );
-        }
     }
 }

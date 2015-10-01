@@ -59,6 +59,6 @@ class ControllerPaymentSmart2payMazooma extends ControllerPaymentSmart2payAbstra
 
     public function index( $data = false )
     {
-        parent::index();
+        return parent::index( $data );
 	}
 }

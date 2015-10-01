@@ -59,6 +59,6 @@ class ControllerPaymentSmart2payQiwiwallet extends ControllerPaymentSmart2payAbs
 
     public function index( $data = false )
     {
-        parent::index();
+        return parent::index( $data );
 	}
 }

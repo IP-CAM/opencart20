@@ -59,6 +59,6 @@ class ControllerPaymentSmart2payTransferenciabradesco extends ControllerPaymentS
 
     public function index( $data = false )
     {
-        parent::index();
+        return parent::index( $data );
 	}
 }

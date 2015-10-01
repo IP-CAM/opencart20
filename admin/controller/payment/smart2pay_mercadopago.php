@@ -59,6 +59,6 @@ class ControllerPaymentSmart2payMercadopago extends ControllerPaymentSmart2payAb
 
     public function index( $data = false )
     {
-        parent::index();
+        return parent::index( $data );
 	}
 }
