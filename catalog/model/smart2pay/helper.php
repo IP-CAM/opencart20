@@ -27,7 +27,7 @@
  */
 class ModelSmart2payHelper extends Model
 {
-    const MODULE_VERSION = '1.0.7';
+    const MODULE_VERSION = '1.0.8';
 
     const ENV_DEMO = 1, ENV_TEST = 2, ENV_LIVE = 3;
     const PAYMENT_METHOD_BT = 1, PAYMENT_METHOD_SIBS = 20;
@@ -179,6 +179,36 @@ class ModelSmart2payHelper extends Model
         return $return_arr;
     }
 
+    public function get_installed_payment_plugins()
+    {
+        // Assume main plugin is installed in front
+        if( !defined( 'DIR_CATALOG' ) )
+            return array();
+
+        static $payment_plugins = array();
+
+        if( !empty( $payment_plugins ) )
+            return $payment_plugins;
+
+        $this->load->model( 'extension/extension' );
+
+        $payment_plugins = $this->model_extension_extension->getInstalled( 'payment' );
+        return $payment_plugins;
+    }
+
+    public function main_plugin_installed()
+    {
+        // Assume main plugin is installed in front
+        if( !defined( 'DIR_CATALOG' ) )
+            return true;
+
+        $installed_extensions = $this->get_installed_payment_plugins();
+        if( !in_array( 'smart2pay', $installed_extensions ) )
+            return false;
+
+        return true;
+    }
+
     /**
      * Get logs
      *
@@ -186,6 +216,9 @@ class ModelSmart2payHelper extends Model
      */
     public function get_logs()
     {
+        if( !$this->main_plugin_installed() )
+            return false;
+
         if( !($query = $this->db->query( 'SELECT * FROM ' . DB_PREFIX . 'smart2pay_log ORDER BY log_created DESC' )) )
             return array();
 
@@ -202,6 +235,9 @@ class ModelSmart2payHelper extends Model
         $country_iso_2 = trim( $country_iso_2 );
 
         if( empty( $method_id ) or empty( $country_iso_2 ) )
+            return false;
+
+        if( !$this->main_plugin_installed() )
             return false;
 
         if( !($query = $this->db->query(
@@ -237,7 +273,10 @@ class ModelSmart2payHelper extends Model
         $this->load->model( 'extension/extension' );
         $this->load->model( 'smart2pay/helper' );
 
-        $installed_extensions = $this->model_extension_extension->getInstalled( 'payment' );
+        if( !$this->main_plugin_installed() )
+            return array();
+
+        $installed_extensions = $this->get_installed_payment_plugins();
 
         $sql_str = 'SELECT '.DB_PREFIX.'smart2pay_method.*, '.
                    ' '.DB_PREFIX.'smart2pay_country.country_id AS country_id, '.DB_PREFIX.'smart2pay_country.code AS country_code, '.DB_PREFIX.'smart2pay_country.name AS country_name, '.
@@ -313,6 +352,19 @@ class ModelSmart2payHelper extends Model
         else
             $params['file_slug'] = trim( $params['file_slug'] );
 
+        if( !$this->main_plugin_installed() )
+        {
+            // Main plugin is not installed (we need database first)
+            $install_link = $this->url->link( 'extension/payment/install', 'token=' . $this->session->data['token'] . '&extension=smart2pay', 'SSL' );
+
+            $lang_arr = array();
+            $lang_arr['heading_title'] = 'Please install Smart2Pay main plugin first!<br/>'.
+                                         '<a href="'.$install_link.'" class="btn btn-success" title="" data-toggle="tooltip" data-original-title="Install Smart2Pay Main Plugin"><i class="fa fa-plus-circle"></i> Install Smart2Pay Main Plugin</a>';
+            $lang_arr['text_'.(!empty( $params['file_slug'] )?$params['file_slug']:'smart2pay_')] = '&nbsp;';
+
+            return $lang_arr;
+        }
+
         $all_method_settings = $this->get_all_method_settings();
 
         if( empty( $params['method_id'] ) and empty( $params['file_slug'] ) )
@@ -341,6 +393,9 @@ class ModelSmart2payHelper extends Model
     {
         $method_id = intval( $method_id );
         if( empty( $method_id ) )
+            return array();
+
+        if( !$this->main_plugin_installed() )
             return array();
 
         if( !($query = $this->db->query( 'SELECT '.DB_PREFIX.'smart2pay_country.* FROM '.DB_PREFIX.'smart2pay_country_method '.
@@ -781,10 +836,10 @@ class ModelSmart2payHelper extends Model
                     'type'    => 'select',
                     'options' =>
                         array(
-                            self::CONFIRM_ORDER_INITIATE => 'On initiate',
-                            self::CONFIRM_ORDER_REDIRECT => 'On redirect',
-                            self::CONFIRM_ORDER_FINAL_STATUS => 'On final status',
-                            self::CONFIRM_ORDER_PAID => 'Only when paid',
+                            self::CONFIRM_ORDER_INITIATE => 'When initiated',
+                            self::CONFIRM_ORDER_REDIRECT => 'When redirecting to payment page',
+                            self::CONFIRM_ORDER_FINAL_STATUS => 'When receiving payment notification',
+                            self::CONFIRM_ORDER_PAID => 'When transaction is paid',
                         ),
                     'value' => self::CONFIRM_ORDER_INITIATE,
                     'hint' => 'Tells plugin when to change order status and make it visible to customer.',
@@ -798,7 +853,7 @@ class ModelSmart2payHelper extends Model
                             0 => 'Status 1',
                             1 => 'Status 2'
                         ),
-                    'value' => 1
+                    'value' => 1, // (1, 1, 'Pending'),
                 ),
             'smart2pay_order_status_success' =>
                 array(
@@ -809,7 +864,7 @@ class ModelSmart2payHelper extends Model
                             0 => 'Status 1',
                             1 => 'Status 2'
                         ),
-                    'value' => 1
+                    'value' => 2, // (2, 1, 'Processing'),
                 ),
             'smart2pay_order_status_canceled' =>
                 array(
@@ -820,7 +875,7 @@ class ModelSmart2payHelper extends Model
                             0 => 'Status 1',
                             1 => 'Status 2'
                         ),
-                    'value' => 1
+                    'value' => 7, // (7, 1, 'Canceled'),
                 ),
             'smart2pay_order_status_failed' =>
                 array(
@@ -831,7 +886,7 @@ class ModelSmart2payHelper extends Model
                             0 => 'Status 1',
                             1 => 'Status 2'
                         ),
-                    'value' => 1
+                    'value' => 10, // (10, 1, 'Failed'),
                 ),
             'smart2pay_order_status_expired' =>
                 array(
@@ -842,7 +897,7 @@ class ModelSmart2payHelper extends Model
                             0 => 'Status 1',
                             1 => 'Status 2'
                         ),
-                    'value' => 1
+                    'value' => 14, // (14, 1, 'Expired');
                 ),
             'smart2pay_skip_payment_page' =>
                 array(
@@ -875,7 +930,7 @@ class ModelSmart2payHelper extends Model
                             0 => 'No',
                             1 => 'Yes'
                         ),
-                    'value' => 0
+                    'value' => 0,
                 ),
             'smart2pay_sort_order' =>
                 array(

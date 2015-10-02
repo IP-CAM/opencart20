@@ -93,6 +93,25 @@ class ControllerPaymentSmart2pay extends Controller
         return $this->load->view( $this->template, $data );
 	}
 
+    private function generate_demo_id( $order_id )
+    {
+        $order_id = intval( $order_id );
+        return 'DEMO_'.str_replace('.','',microtime(true)).'_'.$order_id;
+    }
+
+    private function decode_demo_id( $order_str )
+    {
+        if( substr( $order_str, 0, 5 ) != 'DEMO_' )
+            return $order_str;
+
+        $order_id_arr = explode( '_', $order_str, 3 );
+
+        if( empty( $order_id_arr[2] ) )
+            return $order_str;
+
+        return intval( $order_id_arr[2] );
+    }
+
     /**
      * Pay action
      *  It handles the flow after checkout is finished
@@ -198,9 +217,13 @@ class ControllerPaymentSmart2pay extends Controller
          or $this->request->get['method'] === ModelSmart2payHelper::PAYMENT_METHOD_SIBS )
             $skipHpp = 0;
 
+        $merchant_transaction_id = $this->session->data['order_id'];
+        if( $settings['smart2pay_env'] == ModelSmart2payHelper::ENV_DEMO )
+            $merchant_transaction_id = $this->generate_demo_id( $this->session->data['order_id'] );
+
         $data['payment_data'] = array(
             'MerchantID'       => $settings['smart2pay_mid'],
-            'MerchantTransactionID' => ($settings['smart2pay_env']==ModelSmart2payHelper::ENV_DEMO?'DEMO_'.str_replace('.','',microtime(true)).'_':'').$this->session->data['order_id'],
+            'MerchantTransactionID' => $merchant_transaction_id,
             'Amount'           => $orderTotal,
             'Currency'         => $order['currency_code'],
             'ReturnURL'        => $settings['smart2pay_return_url'],
@@ -246,6 +269,7 @@ class ControllerPaymentSmart2pay extends Controller
      * Feedback action
      *  Default return url after payment
      */
+    // http://s2pubuntu.cloudapp.net/opencart2031/index.php?route=payment/smart2pay/feedback&data=2&MerchantTransactionID=DEMO_14437898019413_2
     public function feedback()
     {
         $this->load->model( 'payment/smart2pay' );
@@ -261,7 +285,7 @@ class ControllerPaymentSmart2pay extends Controller
 
         $order_id = 0;
         if( !empty( $this->request->get['MerchantTransactionID'] ) )
-            $order_id = intval( $this->request->get['MerchantTransactionID'] );
+            $order_id = $this->decode_demo_id( $this->request->get['MerchantTransactionID'] );
         $status_id = 0;
         if( !empty( $this->request->get['data'] ) )
             $status_id = intval( $this->request->get['data'] );
@@ -280,6 +304,10 @@ class ControllerPaymentSmart2pay extends Controller
 
         if( !empty( $error_arr['error'] ) )
         {
+            $redirect = $this->url->link( 'checkout/failure', (!empty( $this->session->data['token'] )?'token=' . $this->session->data['token']:''), 'SSL' );
+
+            $data['redirect'] = $redirect;
+
             $data['header'] = $this->load->controller( 'common/header' );
             $data['footer'] = $this->load->controller( 'common/footer' );
             $data['column_left'] = $this->load->controller( 'common/column_left' );
@@ -474,7 +502,7 @@ class ControllerPaymentSmart2pay extends Controller
                    or !($order = $this->model_checkout_order->getOrder( $order_id )) )
             {
                 $this->model_payment_smart2pay->log( 'Couldn\'t find order with ID ['.$order_id.']', 'warning');
-                echo 'OpenCart Plugin: Hashes did not match (received:' . $response['Hash'] . ') (recomposed:' . $recomposedHash . ')';
+                echo 'OpenCart Plugin: Couldn\'t find order with ID ['.$order_id.']';
             } else
             {
                 $this->model_payment_smart2pay->log( 'Hashes match', 'info' );
@@ -558,7 +586,7 @@ class ControllerPaymentSmart2pay extends Controller
                     case ModelSmart2payHelper::S2P_STATUS_CANCELLED:
                         $this->model_payment_smart2pay->log( 'Payment state is cancelled', 'info' );
 
-						if( $order['order_status_id'] )
+						if( true or $order['order_status_id'] )
                         {
 							$this->model_payment_smart2pay->log( 'Updating order..', 'info' );
 							$this->model_checkout_order->addOrderHistory(
@@ -572,7 +600,7 @@ class ControllerPaymentSmart2pay extends Controller
                     case ModelSmart2payHelper::S2P_STATUS_FAILED:
                         $this->model_payment_smart2pay->log('Payment state is failed', 'info');
 
-						if( $order['order_status_id'] )
+						if( true or $order['order_status_id'] )
                         {
 							$this->model_checkout_order->addOrderHistory(
 								$order_id,
@@ -586,7 +614,7 @@ class ControllerPaymentSmart2pay extends Controller
                     case ModelSmart2payHelper::S2P_STATUS_EXPIRED:
                         $this->model_payment_smart2pay->log( 'Payment state is expired', 'info' );
 
-						if( $order['order_status_id'] )
+						if( true or $order['order_status_id'] )
                         {
 							$this->model_checkout_order->addOrderHistory(
 								$order_id,

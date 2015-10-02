@@ -115,7 +115,7 @@ if( !empty( $error_warning ) )
 
         // autosend form if needed
         <?php
-        if( !empty( $settings['smart2pay_debug_form'] ) )
+        if( empty( $settings['smart2pay_debug_form'] ) )
         {
             ?>jQuery( "#s2pform" ).submit();<?php
         }
