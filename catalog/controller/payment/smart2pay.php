@@ -213,8 +213,8 @@ class ControllerPaymentSmart2pay extends Controller
 
         $skipHpp = $settings['smart2pay_skip_payment_page'];
 
-        if( $this->request->get['method'] === ModelSmart2payHelper::PAYMENT_METHOD_BT
-         or $this->request->get['method'] === ModelSmart2payHelper::PAYMENT_METHOD_SIBS )
+        if( $method_id == ModelSmart2payHelper::PAYMENT_METHOD_BT
+         or $method_id == ModelSmart2payHelper::PAYMENT_METHOD_SIBS )
             $skipHpp = 0;
 
         $merchant_transaction_id = $this->session->data['order_id'];

@@ -27,7 +27,7 @@
  */
 class ModelSmart2payHelper extends Model
 {
-    const MODULE_VERSION = '1.0.8';
+    const MODULE_VERSION = '1.0.9';
 
     const ENV_DEMO = 1, ENV_TEST = 2, ENV_LIVE = 3;
     const PAYMENT_METHOD_BT = 1, PAYMENT_METHOD_SIBS = 20;

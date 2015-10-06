@@ -62,7 +62,6 @@
                     </td>
                     <td class="text-left" style="width:1px;">Installed?</td>
                     <td class="text-left" colspan="2">Method</td>
-                    <td class="text-left">Details</td>
                 </tr>
                 </thead>
                 <tbody>
@@ -117,7 +116,6 @@
                             ?>
                             </div>
                         </td>
-                        <td></td>
                     </tr>
                     <?php
                 }
