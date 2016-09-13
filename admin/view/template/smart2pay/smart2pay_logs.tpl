@@ -3,8 +3,13 @@
     /** @var Loader $this */
     /** @var ModelSmart2payHelper $model_smart2pay_helper */
     /** @property Registry $registry */
-    $this->model( 'smart2pay/helper' );
-    $model_smart2pay_helper = $this->registry->get( 'model_smart2pay_helper' );
+    // $this->model( 'smart2pay/helper' );
+    // $model_smart2pay_helper = $this->registry->get( 'model_smart2pay_helper' );
+
+    global $loader;
+
+    $loader->model( 'smart2pay/helper' );
+    $model_smart2pay_helper = ModelSmart2payHelper::get_last_instance();
 
     echo $header;
     echo $column_left;

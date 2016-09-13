@@ -36,7 +36,7 @@ class ControllerPaymentSmart2pay extends Controller
     {
         $this->load->model( 'payment/smart2pay' );
         $this->load->model( 'account/address' );
-
+        $this->config->get('config_layout_id');
         /*
          * Get address
          */
@@ -77,18 +77,33 @@ class ControllerPaymentSmart2pay extends Controller
 
         if( !is_dir( DIR_TEMPLATE . $this->config->get( 'config_template' ) . '/image/payment/smart2pay' ) )
         {
-            $this->template = $this->config->get( 'config_template' ) . '/template/payment/smart2pay.tpl';
+            //$this->template = $this->config->get( 'config_template' ) . '/template/payment/smart2pay.tpl';
             $data['base_img_url'] = $server_base . 'catalog/view/theme/' . $this->config->get( 'config_template' ) . '/image/payment/smart2pay/methods/';
         } else
+        {
             $data['base_img_url'] = $server_base . 'catalog/view/theme/default/image/payment/smart2pay/methods/';
+        }
+
+        if( !($template_search = $this->model_smart2pay_helper->get_template_file_location( 'template/payment/smart2pay.tpl' ))
+         or !is_array( $template_search ) )
+        {
+            trigger_error( 'Error: Could not load Smart2Pay template file!' );
+            exit();
+        } else
+        {
+            if( !empty( $template_search['path'] ) )
+                $this->template = $template_search['path'];
+            else
+                $this->template = $template_search['default_path'];
+        }
 
         /*
          * Prepare template
          */
-        if( !file_exists( DIR_TEMPLATE . $this->config->get( 'config_template' ) . '/template/payment/smart2pay.tpl' ) )
-            $this->template = $this->config->get( 'config_template' ) . '/template/payment/smart2pay.tpl';
-        else
-            $this->template = 'default/template/payment/smart2pay.tpl';
+        // if( @file_exists( DIR_TEMPLATE . $this->config->get( 'config_template' ) . '/template/payment/smart2pay.tpl' ) )
+        //     $this->template = $this->config->get( 'config_template' ) . '/template/payment/smart2pay.tpl';
+        // else
+        //     $this->template = 'default/template/payment/smart2pay.tpl';
 
         return $this->load->view( $this->template, $data );
 	}
@@ -269,7 +284,6 @@ class ControllerPaymentSmart2pay extends Controller
      * Feedback action
      *  Default return url after payment
      */
-    // http://s2pubuntu.cloudapp.net/opencart2031/index.php?route=payment/smart2pay/feedback&data=2&MerchantTransactionID=DEMO_14437898019413_2
     public function feedback()
     {
         $this->load->model( 'payment/smart2pay' );
@@ -456,6 +470,7 @@ class ControllerPaymentSmart2pay extends Controller
              or empty( $response ) or !is_array( $response ) )
             {
                 $this->model_payment_smart2pay->log( 'No data provided', 'info' );
+                $this->model_payment_smart2pay->log( 'END CALLBACK <<<', 'info' );
                 exit;
             }
 
@@ -678,25 +693,38 @@ class ControllerPaymentSmart2pay extends Controller
 
         $data['suport_email'] = $this->config->get( 'config_email' );
 
-        if( @file_exists( DIR_TEMPLATE . $this->config->get( 'config_template' ) . '/template/smart2pay/email/smart2pay_payment_confirmation.tpl' ) )
-            $template = $this->config->get( 'config_template' ) . '/template/smart2pay/email/smart2pay_payment_confirmation.tpl';
-        else
-            $template = 'default/template/smart2pay/email/smart2pay_payment_confirmation.tpl';
+        if( !($template_search = $this->model_smart2pay_helper->get_template_file_location( 'template/smart2pay/email/smart2pay_payment_confirmation.tpl' ))
+         or !is_array( $template_search ) )
+        {
+            trigger_error( $this->language->get( 'err_template_file' ) );
+            exit();
+        } else
+        {
+            if( !empty( $template_search['path'] ) )
+                $template = $template_search['path'];
+            else
+                $template = $template_search['default_path'];
+        }
+
+        // if( @file_exists( DIR_TEMPLATE . $this->config->get( 'config_template' ) . '/template/smart2pay/email/smart2pay_payment_confirmation.tpl' ) )
+        //     $template = $this->config->get( 'config_template' ) . '/template/smart2pay/email/smart2pay_payment_confirmation.tpl';
+        // else
+        //     $template = 'default/template/smart2pay/email/smart2pay_payment_confirmation.tpl';
 
         $subject = 'Payment Confirmation';
 
         $mail = new Mail();
         $mail->protocol = $this->config->get('config_mail_protocol');
         $mail->parameter = $this->config->get('config_mail_parameter');
-        $mail->hostname = $this->config->get('config_smtp_host');
-        $mail->username = $this->config->get('config_smtp_username');
-        $mail->password = $this->config->get('config_smtp_password');
-        $mail->port = $this->config->get('config_smtp_port');
-        $mail->timeout = $this->config->get('config_smtp_timeout');
+        $mail->smtp_hostname = $this->config->get('config_mail_smtp_hostname');
+        $mail->smtp_username = $this->config->get('config_mail_smtp_username');
+        $mail->smtp_password = html_entity_decode($this->config->get('config_mail_smtp_password'), ENT_QUOTES, 'UTF-8');
+        $mail->smtp_port = $this->config->get('config_mail_smtp_port');
+        $mail->smtp_timeout = $this->config->get('config_mail_smtp_timeout');
 
         $mail->setTo( $order['email'] );
         $mail->setFrom( $this->config->get( 'config_email' ) );
-        $mail->setSender( $order['store_name'] );
+        $mail->setSender( html_entity_decode( $order['store_name'], ENT_QUOTES, 'UTF-8' ) );
         $mail->setSubject( html_entity_decode( $subject, ENT_QUOTES, 'UTF-8' ) );
         $mail->setHtml( $this->load->view( $template, $data ) );
         //$mail->setText(html_entity_decode($text, ENT_QUOTES, 'UTF-8'));

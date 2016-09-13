@@ -27,7 +27,7 @@
  */
 class ModelSmart2payHelper extends Model
 {
-    const MODULE_VERSION = '1.0.9';
+    const MODULE_VERSION = '1.0.10';
 
     const ENV_DEMO = 1, ENV_TEST = 2, ENV_LIVE = 3;
     const PAYMENT_METHOD_BT = 1, PAYMENT_METHOD_SIBS = 20;
@@ -74,6 +74,14 @@ class ModelSmart2payHelper extends Model
 
     static function get_last_instance()
     {
+        if( !self::$last_instance )
+        {
+            // 2.2.0.0 doesn't instantiate model class before using a method from class...
+            global $registry;
+
+            return new ModelSmart2payHelper( $registry );
+        }
+
         return self::$last_instance;
     }
 
@@ -132,8 +140,19 @@ class ModelSmart2payHelper extends Model
         and !@file_exists( DIR_TEMPLATE . $config_template . '/' . $in_template_path ) )
             return $return_arr;
 
-        $return_arr['path'] = $config_template . '/' . $in_template_path;
-        $return_arr['url'] = $server_base.'catalog/view/theme/'.$config_template . '/' . $in_template_path;
+        if( version_compare( VERSION, '2.2.0.0', '<' ) )
+            $template_path = $config_template . '/' . $in_template_path;
+
+        else
+        {
+            $config_template = '';
+
+            if( substr( $in_template_path, 0, 9 ) == 'template/' )
+                $in_template_path = substr( $in_template_path, 9 );
+        }
+
+        $return_arr['path'] = $config_template . ($config_template != ''?'/':'') . $in_template_path;
+        $return_arr['url'] = $server_base.'catalog/view/theme/'.$config_template . ($config_template != ''?'/':'') . $in_template_path;
 
         return $return_arr;
     }
