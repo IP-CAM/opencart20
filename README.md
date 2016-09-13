@@ -2,4 +2,4 @@
 
 Smart2Pay OpenCart 2.0+ Plugin
 
-Last version tested on 2.0.3.1
+Last version tested on 2.2.0.0
