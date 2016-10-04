@@ -463,13 +463,24 @@ class ControllerPaymentSmart2pay extends Controller
         try
         {
             $response = null;
-            if( ($data = file_get_contents( 'php://input' )) )
+            if( ($data = @file_get_contents( 'php://input' )) )
                 parse_str( $data, $response );
 
             if( empty( $data )
              or empty( $response ) or !is_array( $response ) )
             {
-                $this->model_payment_smart2pay->log( 'No data provided', 'info' );
+                $request_method = '';
+                if( !empty( $_SERVER['REQUEST_METHOD'] ) )
+                    $request_method = $_SERVER['REQUEST_METHOD'];
+                $request_referer = '';
+                if( !empty( $_SERVER['HTTP_REFERER'] ) )
+                    $request_referer = $_SERVER['HTTP_REFERER'];
+
+                $error_msg = '['.$request_method.']('.$request_referer.') No data provided';
+
+                echo $error_msg;
+
+                $this->model_payment_smart2pay->log( $error_msg, 'info' );
                 $this->model_payment_smart2pay->log( 'END CALLBACK <<<', 'info' );
                 exit;
             }
@@ -665,6 +676,7 @@ class ControllerPaymentSmart2pay extends Controller
             }
         } catch( Exception $e )
         {
+            echo $e->getMessage();
             $this->model_payment_smart2pay->log( $e->getMessage(), 'exception' );
         }
 
